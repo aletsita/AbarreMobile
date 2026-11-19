@@ -1,0 +1,18 @@
+.sync-chip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+.sync-chip ion-icon { font-size: 20px; flex-shrink: 0; }
+.sync-chip ion-spinner { width: 18px; height: 18px; color: var(--ion-color-primary); }
+.sync-chip > span:first-of-type { flex: 1; min-width: 150px; }
+.sync-chip.is-pending { background: var(--t-warning-bg); color: var(--t-warning-text); }
+.sync-chip.is-syncing { background: var(--t-primary-bg); color: var(--ion-color-primary); }
+.sync-chip.is-done { background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.sync-chip-action { font-size: 0.76rem; font-weight: 700; padding: 4px 8px; border-radius: 5px; background: color-mix(in srgb, var(--t-surface) 70%, transparent); }

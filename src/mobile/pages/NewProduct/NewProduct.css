@@ -1,0 +1,60 @@
+.np-alert {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border-left: 4px solid var(--ion-color-warning);
+  border-radius: var(--t-radius-sm);
+  background: var(--t-warning-bg);
+  color: var(--t-warning-text);
+}
+.np-alert ion-icon { font-size: 24px; flex-shrink: 0; }
+.np-alert strong { font-size: 0.98rem; }
+.np-alert p { margin: 2px 0 0; font-size: 0.88rem; line-height: 1.4; }
+
+.np-top { display: flex; gap: 12px; align-items: flex-start; }
+.np-top .np-code { flex: 1; }
+.np-top ion-icon[slot='start'] { color: var(--t-muted); margin-right: 8px; font-size: 20px; }
+.np-code { font-variant-numeric: tabular-nums; letter-spacing: 0.04em; font-weight: 600; }
+
+.np-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.np-price { font-size: 1.2rem; font-weight: 800; }
+.np-currency { font-weight: 700; color: var(--t-muted); margin-right: 4px; }
+.np-label { display: block; font-size: 0.8rem; font-weight: 650; color: var(--t-muted); margin: 0 0 6px 2px; }
+.np-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 54px;
+  max-width: 220px;
+  border: 1px solid var(--t-border-strong);
+  border-radius: var(--t-radius-sm);
+  background: var(--t-surface);
+}
+.np-stepper button {
+  width: 52px;
+  height: 52px;
+  border: 0;
+  background: transparent;
+  color: var(--ion-color-primary);
+  font-size: 22px;
+  display: grid;
+  place-items: center;
+}
+.np-stepper input { width: 70px; border: 0; outline: 0; background: transparent; text-align: center; font: inherit; font-size: 1.25rem; font-weight: 800; }
+
+.np-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.np-chips button {
+  height: 40px;
+  padding: 0 14px;
+  border: 1.5px solid var(--t-border-strong);
+  border-radius: 6px;
+  background: var(--t-surface);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--ion-text-color);
+}
+.np-chips button.is-active { border-color: var(--ion-color-primary); background: var(--ion-color-primary); color: var(--ion-color-primary-contrast); }
+.np-only { margin-top: 6px; }
+.np-margin { margin: -4px 2px 0; font-size: 0.88rem; color: var(--t-muted); }
+.np-margin strong { color: var(--ion-color-success-shade); }

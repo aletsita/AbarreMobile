@@ -1,0 +1,126 @@
+.scanner {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: var(--t-ink);
+  color: #fff;
+}
+.scanner-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scanner.is-idle .scanner-video { display: none; }
+
+.scanner-aim { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.scanner-frame {
+  position: relative;
+  width: min(70%, 280px);
+  height: min(46%, 130px);
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(6, 14, 34, 0.45);
+}
+.scanner-frame.is-square { width: min(56%, 220px); height: auto; aspect-ratio: 1; }
+.corner { position: absolute; width: 24px; height: 24px; border: 3px solid #fff; }
+.corner.tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-top-left-radius: 8px; }
+.corner.tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-top-right-radius: 8px; }
+.corner.bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-bottom-left-radius: 8px; }
+.corner.br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-bottom-right-radius: 8px; }
+.scan-line {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  height: 2px;
+  background: var(--ion-color-secondary-tint);
+  box-shadow: 0 0 10px 1px rgba(var(--ion-color-secondary-rgb), 0.8);
+  animation: scan-move 1.8s ease-in-out infinite alternate;
+}
+@keyframes scan-move { from { top: 10%; } to { top: 88%; } }
+.scan-flash { position: absolute; inset: 0; background: rgba(var(--ion-color-success-rgb), 0.3); animation: scan-flash 0.45s ease-out forwards; }
+@keyframes scan-flash { to { opacity: 0; } }
+
+.scanner-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 28px;
+  text-align: center;
+  color: #c3cde3;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+.scanner-state > ion-icon { font-size: 34px; color: #fff; margin-bottom: 4px; }
+.scanner-state strong { color: #fff; font-size: 0.98rem; }
+.scanner-state ion-spinner { color: #fff; }
+.scanner-state button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scanner-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.scanner-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  background: rgba(6, 14, 34, 0.7);
+  font-size: 0.84rem;
+  font-weight: 600;
+  max-width: 80%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scanner-hint.is-ok { background: var(--ion-color-success); }
+.scanner-hint ion-icon { font-size: 17px; flex-shrink: 0; }
+.scanner-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(6, 14, 34, 0.7);
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+}
+.scanner-icon-btn.is-on { background: #fff; color: var(--t-ink); }
+
+/* App nativa: la cámara de ML Kit queda detrás del WebView; se oculta la app y solo se ve el visor */
+html.scanner-native,
+html.scanner-native body { background: transparent !important; }
+html.scanner-native body { visibility: hidden; }
+.scanner-native-overlay { visibility: visible; position: fixed; inset: 0; z-index: 100000; }
+.scanner.is-native { background: transparent; }
+.scanner.is-native .scanner-top {
+  top: calc(12px + env(safe-area-inset-top));
+  left: calc(12px + env(safe-area-inset-left));
+  right: calc(12px + env(safe-area-inset-right));
+}
+.scanner-native-actions { display: flex; gap: 8px; margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-line { animation: none; top: 50%; }
+}
