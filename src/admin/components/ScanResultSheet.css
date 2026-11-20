@@ -1,13 +1,13 @@
-.scan-sheet { --border-radius: 8px; }
+.scan-sheet { --border-radius: 24px; }
 .scan-sheet ion-content { --background: var(--t-surface); }
 
 .ss-head { display: flex; gap: 14px; align-items: center; margin-top: 6px; }
-.ss-head .pthumb { border-radius: 10px; }
+.ss-head .pthumb { border-radius: var(--t-radius); }
 .ss-info { flex: 1; min-width: 0; }
 .ss-code { font-size: 0.76rem; color: var(--t-muted); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
-.ss-info h2 { margin: 2px 0 8px; font-size: 1.08rem; font-weight: 750; line-height: 1.25; }
+.ss-info h2 { margin: 2px 0 8px; font-size: 1.15rem; font-weight: 800; line-height: 1.25; }
 .ss-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ss-meta strong { font-size: 1.35rem; color: var(--ion-text-color); }
+.ss-meta strong { font-size: 1.5rem; font-weight: 800; color: var(--ion-text-color); }
 
 .ss-qty {
   display: flex;
@@ -16,9 +16,9 @@
   gap: 12px;
   margin-top: 18px;
   padding: 8px 8px 8px 14px;
-  border: 1px solid var(--t-border);
+  border: 0;
   border-radius: var(--t-radius);
-  background: var(--t-surface-2);
+  background: var(--t-surface-3);
 }
 .ss-qty > span { font-weight: 650; font-size: 0.94rem; }
 .ss-stepper { display: flex; align-items: center; gap: 4px; }
@@ -27,11 +27,12 @@
   place-items: center;
   width: 48px;
   height: 48px;
-  border: 1px solid var(--t-border);
-  border-radius: var(--t-radius-sm);
+  border: 0;
+  border-radius: 50%;
   background: var(--t-surface);
   color: var(--ion-color-primary);
   font-size: 22px;
+  box-shadow: var(--t-shadow-btn);
 }
 .ss-stepper span { min-width: 44px; text-align: center; font-size: 1.45rem; }
 
@@ -40,7 +41,7 @@
   height: 40px;
   padding: 0 12px;
   border: 1.5px solid var(--t-border-strong);
-  border-radius: var(--t-radius-sm);
+  border-radius: 999px;
   background: var(--t-surface);
   font: inherit;
   font-weight: 650;

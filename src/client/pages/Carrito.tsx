@@ -34,7 +34,7 @@ export default function Carrito() {
         <ul className="cl-lines card">
           {cart.lines.map((l) => (
             <li key={l.productId}>
-              <ProductImage product={l} size={48} />
+              <ProductImage product={l} size={64} />
               <div className="cl-line-info">
                 <strong>{l.name}</strong>
                 <span className="muted">{money(l.price)} c/u{l.qty >= l.stock && ' · máximo disponible'}</span>

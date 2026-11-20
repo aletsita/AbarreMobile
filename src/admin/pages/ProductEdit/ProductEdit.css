@@ -1,7 +1,7 @@
 .pd-hero { display: flex; align-items: center; gap: 14px; }
 .pd-hero > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.pd-hero h1 { margin: 0; font-size: 1.05rem; font-weight: 750; line-height: 1.25; }
-.pd-price { font-size: 1.3rem; }
+.pd-hero h1 { margin: 0; font-size: 1.15rem; font-weight: 800; line-height: 1.25; }
+.pd-price { font-size: 1.45rem; font-weight: 800; }
 .pd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 .pd-stock { display: flex; align-items: center; justify-content: space-between; }
@@ -13,9 +13,9 @@
   place-items: center;
   width: 50px;
   height: 50px;
-  border: 1px solid var(--t-border);
-  border-radius: var(--t-radius-sm);
-  background: var(--t-surface-2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--t-surface-3);
   color: var(--ion-color-primary);
   font-size: 22px;
 }

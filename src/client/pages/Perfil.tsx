@@ -84,7 +84,7 @@ export default function Perfil() {
           )}
 
           <h2 className="section-title">Apariencia</h2>
-          <IonSegment value={theme} onIonChange={(e) => setTheme(e.detail.value as ThemeMode)} aria-label="Tema">
+          <IonSegment className="cl-segment" value={theme} onIonChange={(e) => setTheme(e.detail.value as ThemeMode)} aria-label="Tema">
             {([['sistema', contrastOutline], ['claro', sunnyOutline], ['oscuro', moonOutline]] as const).map(([m, icon]) => (
               <IonSegmentButton key={m} value={m} layout="icon-start">
                 <IonIcon icon={icon} />

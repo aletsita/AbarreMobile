@@ -1,11 +1,11 @@
 import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonSpinner, IonToolbar, useIonRouter, useIonToast } from '@ionic/react';
-import { cartOutline } from 'ionicons/icons';
+import { cartOutline, storefrontOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
-import { ProductImage, QtyStepper } from '../components/ui';
+import { Price, ProductImage, QtyStepper } from '../components/ui';
 import { useCart } from '../lib/cart';
 import { useCatalog } from '../lib/catalog';
 
@@ -47,7 +47,7 @@ export default function Producto() {
         <ProductImage product={p} />
         <span className="cl-detail-cat">{p.category}</span>
         <h1>{p.name}</h1>
-        <strong className="money cl-detail-price">{money(p.price)}</strong>
+        <Price value={p.price} className="cl-detail-price" />
         {p.stock < 1 ? (
           <p className="cl-out">Agotado</p>
         ) : (
@@ -56,6 +56,10 @@ export default function Producto() {
             {inCart > 0 && ` · ${inCart} en tu carrito`}
           </p>
         )}
+        <p className="cl-detail-pickup">
+          <IonIcon icon={storefrontOutline} aria-hidden="true" />
+          <span><strong>Recoge en tienda</strong> y paga al recoger.</span>
+        </p>
       </div>
     );
   }

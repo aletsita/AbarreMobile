@@ -1,4 +1,4 @@
-import { IonIcon } from '@ionic/react';
+import { IonIcon, useIonRouter, useIonToast } from '@ionic/react';
 import {
   addOutline,
   archiveOutline,
@@ -9,12 +9,14 @@ import {
   leafOutline,
   nutritionOutline,
   removeOutline,
+  trashOutline,
   restaurantOutline,
   sparklesOutline,
   waterOutline,
 } from 'ionicons/icons';
-import { categoryColor } from '../../data/models';
-import { STATUS_LABEL, type OrderStatus } from '../../api/types';
+import { categoryColor, money } from '../../data/models';
+import { STATUS_LABEL, type CatalogProduct, type OrderStatus } from '../../api/types';
+import { useCart } from '../lib/cart';
 
 const CATEGORY_ICON: Record<string, string> = {
   Abarrotes: basketOutline,
@@ -28,21 +30,91 @@ const CATEGORY_ICON: Record<string, string> = {
   Enlatados: archiveOutline,
 };
 
-// Foto del producto o, si no tiene, el ícono de su categoría
+export const categoryIcon = (c: string) => CATEGORY_ICON[c] ?? cubeOutline;
+
+// Color de la categoría mezclado para íconos y fondos suaves
+export const categoryTint = (c: string, amount = 14) => {
+  const color = categoryColor(c);
+  return { color: `color-mix(in srgb, ${color} 80%, var(--ion-text-color))`, background: `color-mix(in srgb, ${color} ${amount}%, var(--t-surface))` };
+};
+
+// Foto del producto sobre fondo gris muy claro o, si no tiene, el ícono de su categoría
 export function ProductImage({ product, size }: { product: { name: string; category: string; photo?: string }; size?: number }) {
-  const color = categoryColor(product.category);
   return (
     <span
       className="cl-img"
-      style={{
-        ...(size ? { width: size, height: size } : {}),
-        color: `color-mix(in srgb, ${color} 80%, var(--ion-text-color))`,
-        background: `color-mix(in srgb, ${color} 14%, var(--t-surface))`,
-      }}
+      style={{ ...(size ? { width: size, height: size } : {}), color: categoryTint(product.category).color }}
       aria-hidden="true"
     >
-      {product.photo ? <img src={product.photo} alt="" /> : <IonIcon icon={CATEGORY_ICON[product.category] ?? cubeOutline} />}
+      {product.photo ? <img src={product.photo} alt="" /> : <IonIcon icon={categoryIcon(product.category)} />}
     </span>
+  );
+}
+
+// Precio con los centavos en superíndice
+export function Price({ value, className = '' }: { value: number; className?: string }) {
+  const [int, cents] = value.toFixed(2).split('.');
+  return (
+    <span className={`cl-price ${className}`}>
+      <span aria-hidden="true">
+        ${Number(int).toLocaleString('es-MX')}
+        <sup>{cents}</sup>
+      </span>
+      <span className="sr-only">{money(value)}</span>
+    </span>
+  );
+}
+
+// Tarjeta compacta del catálogo: "+" para agregar y, ya en el carrito, selector de cantidad
+export function ProductCard({ product: p }: { product: CatalogProduct }) {
+  const cart = useCart();
+  const router = useIonRouter();
+  const [toast] = useIonToast();
+  const soldOut = p.stock < 1;
+  const inCart = cart.qtyOf(p.id);
+  const open = () => router.push(`/cliente/producto/${p.id}`);
+
+  const add = () => {
+    const added = cart.add(p);
+    void toast({
+      message: added ? `${p.name} en tu carrito` : `Ya tienes todas las piezas disponibles de ${p.name}`,
+      duration: 1600,
+      color: added ? 'success' : 'warning',
+      position: 'top',
+      cssClass: 'toast-app',
+    });
+  };
+
+  return (
+    <article className={`pc ${soldOut ? 'is-out' : ''}`}>
+      <div className="pc-media">
+        <button type="button" className="pc-open" onClick={open} aria-label={`${p.name}, ${money(p.price)}${soldOut ? ', agotado' : ''}`}>
+          <ProductImage product={p} />
+        </button>
+        {soldOut ? (
+          <span className="pc-soldout">Agotado</span>
+        ) : inCart > 0 ? (
+          <div className="pc-qty" role="group" aria-label={`Cantidad de ${p.name}`}>
+            <button type="button" onClick={() => (inCart <= 1 ? cart.remove(p.id) : cart.setQty(p.id, inCart - 1))} aria-label={inCart <= 1 ? 'Quitar del carrito' : 'Quitar uno'}>
+              <IonIcon icon={inCart <= 1 ? trashOutline : removeOutline} />
+            </button>
+            <output aria-live="polite">{inCart}</output>
+            <button type="button" onClick={() => cart.add(p)} disabled={inCart >= p.stock} aria-label="Agregar uno">
+              <IonIcon icon={addOutline} />
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="pc-add" onClick={add} aria-label={`Agregar ${p.name}`}>
+            <IonIcon icon={addOutline} />
+          </button>
+        )}
+      </div>
+      <button type="button" className="pc-body" onClick={open} tabIndex={-1} aria-hidden="true">
+        <Price value={p.price} className="pc-price" />
+        <span className="pc-name">{p.name}</span>
+        {!soldOut && p.stock <= 5 && <span className="pc-left">Quedan {p.stock}</span>}
+      </button>
+    </article>
   );
 }
 
