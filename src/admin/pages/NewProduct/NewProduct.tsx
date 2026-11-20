@@ -82,30 +82,33 @@ export default function NewProduct() {
             </section>
           )}
 
-          <div className="np-top">
-            <PhotoPicker value={photo} onChange={setPhoto} />
+          <section className="card np-group">
+            <h2 className="np-group-title">Datos del producto</h2>
+            <div className="np-top">
+              <PhotoPicker value={photo} onChange={setPhoto} />
+              <TextField
+                className="np-code"
+                label="Código de barras"
+                icon={barcodeOutline}
+                inputMode="numeric"
+                value={barcode}
+                error={(tried && errors.barcode) || (duplicate ? errors.barcode : '')}
+                onChange={(v) => setBarcode(v.replace(/\s/g, ''))}
+              />
+            </div>
+
             <TextField
-              className="np-code"
-              label="Código de barras"
-              icon={barcodeOutline}
-              inputMode="numeric"
-              value={barcode}
-              error={(tried && errors.barcode) || (duplicate ? errors.barcode : '')}
-              onChange={(v) => setBarcode(v.replace(/\s/g, ''))}
+              label="Nombre del producto"
+              placeholder="Ej. Galletas Emperador 109 g"
+              value={name}
+              error={tried && errors.name}
+              autoCapitalize="sentences"
+              onChange={setName}
             />
-          </div>
+          </section>
 
-          <TextField
-            label="Nombre del producto"
-            placeholder="Ej. Galletas Emperador 109 g"
-            value={name}
-            error={tried && errors.name}
-            autoCapitalize="sentences"
-            onChange={setName}
-          />
-
-          <div>
-            <span className="fld-label np-label">Categoría</span>
+          <section className="card np-group">
+            <h2 className="np-group-title">Categoría</h2>
             <div className="np-chips">
               {CATEGORIES.map((c) => (
                 <button key={c} type="button" className={c === category ? 'is-active' : ''} aria-pressed={c === category} onClick={() => setCategory(c)}>
@@ -113,18 +116,21 @@ export default function NewProduct() {
                 </button>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="form-grid np-grid">
-            <MoneyField label="Precio de compra" value={cost} error={errors.cost} onChange={setCost} />
-            <MoneyField label="Precio de venta" className="np-price" value={price} error={tried && errors.price} onChange={setPrice} />
-          </div>
-          {Number(price) > 0 && Number(cost) > 0 && margin > 0 && (
-            <p className="np-margin">Ganas <strong>{money(margin)}</strong> por pieza ({Math.round((margin / Number(price)) * 100)} %)</p>
-          )}
+          <section className="card np-group">
+            <h2 className="np-group-title">Precio</h2>
+            <div className="form-grid np-grid">
+              <MoneyField label="Precio de compra" value={cost} error={errors.cost} onChange={setCost} />
+              <MoneyField label="Precio de venta" className="np-price" value={price} error={tried && errors.price} onChange={setPrice} />
+            </div>
+            {Number(price) > 0 && Number(cost) > 0 && margin > 0 && (
+              <p className="np-margin">Ganas <strong>{money(margin)}</strong> por pieza ({Math.round((margin / Number(price)) * 100)} %)</p>
+            )}
+          </section>
 
-          <div className="np-stock">
-            <span className="fld-label np-label">Existencia inicial</span>
+          <section className="card np-group np-stock">
+            <h2 className="np-group-title">Existencia inicial</h2>
             <div className="np-stepper">
               <button type="button" onClick={() => setStock((s) => Math.max(0, s - 1))} aria-label="Menos">
                 <IonIcon icon={remove} />
@@ -140,7 +146,7 @@ export default function NewProduct() {
                 <IonIcon icon={add} />
               </button>
             </div>
-          </div>
+          </section>
         </div>
       </IonContent>
 

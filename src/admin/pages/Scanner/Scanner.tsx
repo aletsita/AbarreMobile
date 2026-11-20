@@ -34,6 +34,7 @@ import { BarcodeSearch } from '../../components/BarcodeSearch';
 import { EmptyState } from '../../../components/EmptyState';
 import { ProductThumb } from '../../../components/ProductThumb';
 import { ScannerView } from '../../components/ScannerView';
+import { StockBadge } from '../../components/StockBadge';
 import { SyncBadge } from '../../components/SyncBadge';
 import { useApp, type ProductView, type SentView } from '../../context/AppContext';
 import { money } from '../../../data/models';
@@ -267,7 +268,10 @@ export default function Scanner() {
                         <ProductThumb product={l.product} size={38} />
                         <span className="scan-list-name">
                           <strong>{l.product.name}</strong>
-                          <span className="muted">Stock {l.product.stock} → {l.product.stock + l.qty}</span>
+                          <span className="scan-list-stock">
+                            <StockBadge product={l.product} compact />
+                            <span className="muted">→ {l.product.stock + l.qty} pzas</span>
+                          </span>
                         </span>
                         <span className="scan-batch-qty">
                           <button type="button" onClick={() => changeBatch(l.product.id, -1)} aria-label="Uno menos">
