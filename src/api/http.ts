@@ -1,8 +1,7 @@
 import { ApiError, networkError } from './errors';
 import type { Transport } from './transport';
 
-// Transporte real (VITE_API_URL). SIN PROBAR: sigue la propuesta de API_SIMULADA.md y se ajusta
-// cuando llegue API_CONTRACT.md.
+// Transporte HTTP hacia la API del servidor de la tienda (ver API.md)
 export function httpTransport(base: string): Transport {
   return {
     async request(method, path, { token, body, headers } = {}) {

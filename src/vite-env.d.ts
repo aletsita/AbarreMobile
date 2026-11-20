@@ -1,6 +1,5 @@
 interface ImportMetaEnv {
-  // Servidor de sincronización inicial (opcional): el celular lo cambia al vincularse con el QR o la dirección
+  // Dirección inicial del servidor de la tienda (opcional). La API usa el mismo servidor en /api.
+  // Se cambia en «Iniciar sesión» o al vincular el celular con el QR de la caja.
   readonly VITE_SYNC_URL?: string;
-  // API del servidor (registro, catálogo, pedidos). Vacía = servidor simulado dentro de la app
-  readonly VITE_API_URL?: string;
 }

@@ -1,21 +1,20 @@
 import { IonButton, IonContent, IonIcon, IonLabel, IonPage, IonSegment, IonSegmentButton, IonSpinner, useIonAlert } from '@ionic/react';
 import { callOutline, contrastOutline, logOutOutline, mailOutline, moonOutline, notificationsOffOutline, notificationsOutline, sunnyOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
-import { api, SIMULATED } from '../../api';
+import { api } from '../../api';
 import { errorMessage } from '../../api/errors';
 import type { Customer } from '../../api/types';
 import { AppHeader } from '../../components/AppHeader';
 import { initials } from '../../data/models';
 import { THEME_LABEL, useThemeMode, type ThemeMode } from '../../lib/theme';
 import { useSession } from '../../session/SessionContext';
-import { SimPanel } from '../components/SimPanel';
-import { pushMode, pushPermission, requestPush, type PushPermission } from '../lib/push';
+import { notifyPermission, requestNotify, type NotifyPermission } from '../lib/notify';
 
-const PERMISSION_TEXT: Record<PushPermission, string> = {
-  granted: 'Te avisamos cuando cambie el estado de tus pedidos.',
+const PERMISSION_TEXT: Record<NotifyPermission, string> = {
+  granted: 'Te avisamos con una notificación cuando cambie el estado de tus pedidos, aunque la app esté en segundo plano.',
   prompt: 'Aún no activas los avisos de tus pedidos.',
   denied: 'Los avisos están bloqueados. Actívalos en Ajustes del teléfono › Apps › Abarré › Notificaciones.',
-  'no-disponible': 'Los avisos no están disponibles en esta versión de la app. Revisa «Mis pedidos».',
+  'no-disponible': 'Este navegador no muestra notificaciones. Revisa «Mis pedidos».',
 };
 
 export default function Perfil() {
@@ -24,13 +23,11 @@ export default function Perfil() {
   const [theme, setTheme] = useThemeMode();
   const [me, setMe] = useState<Customer | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [permission, setPermission] = useState<PushPermission | null>(null);
-  const [simulatedPush, setSimulatedPush] = useState(false);
+  const [permission, setPermission] = useState<NotifyPermission | null>(null);
 
   useEffect(() => {
     api.me().then(setMe, (e) => setError(errorMessage(e, 'No pudimos cargar tus datos.')));
-    void pushPermission().then(setPermission);
-    void pushMode().then((m) => setSimulatedPush(m === 'simulado'));
+    void notifyPermission().then(setPermission);
   }, []);
 
   const confirmLogout = () =>
@@ -73,9 +70,8 @@ export default function Perfil() {
               <IonIcon icon={permission === 'granted' ? notificationsOutline : notificationsOffOutline} />
               <div>
                 <p>{PERMISSION_TEXT[permission]}</p>
-                {simulatedPush && permission === 'granted' && <small className="muted">Simulados: llegan como aviso dentro de la app.</small>}
                 {permission === 'prompt' && (
-                  <IonButton size="small" onClick={() => void requestPush().then(setPermission)}>
+                  <IonButton size="small" onClick={() => void requestNotify().then(setPermission)}>
                     Activar avisos
                   </IonButton>
                 )}
@@ -97,8 +93,6 @@ export default function Perfil() {
             <IonIcon slot="start" icon={logOutOutline} />
             Cerrar sesión
           </IonButton>
-
-          {SIMULATED && <SimPanel />}
         </div>
       </IonContent>
     </IonPage>

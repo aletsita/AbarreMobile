@@ -1,14 +1,15 @@
-// Tipos que viajan entre la app y el servidor.
-// Hoy los responde el servidor simulado (src/api/sim). Son una PROPUESTA (ver API_SIMULADA.md):
-// cuando exista API_CONTRACT.md se ajustan aquí y en src/api/index.ts, sin tocar las pantallas.
+// Tipos que viajan entre la app y el servidor (tendero-web/server/api.js). Ver API.md.
 
-export type Role = 'cliente' | 'dispositivo';
+// cliente: Pide y recoge · personal: usuario activo de la caja (Dueño, Cajero o Inventario)
+export type Role = 'cliente' | 'personal';
+export type StaffRole = 'Dueño' | 'Cajero' | 'Inventario';
 
 // Lo que trae el token (JWT: header.payload.firma, payload en base64url)
 export interface TokenClaims {
   sub: string; // id del usuario o del dispositivo
   role: Role;
   name: string;
+  staffRole?: StaffRole; // solo personal
   exp: number; // segundos desde 1970
 }
 
@@ -30,7 +31,8 @@ export interface CatalogProduct {
   name: string;
   category: string;
   price: number;
-  stock: number;
+  stock: number; // disponible para pedir (existencia menos lo apartado). No se muestra tal cual al cliente.
+  description?: string;
   photo?: string;
 }
 
@@ -45,7 +47,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
-  folio: number;
+  folio: string; // el de la caja, "P-0006"
   status: OrderStatus;
   items: OrderItem[];
   total: number;

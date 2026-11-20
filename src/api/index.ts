@@ -1,18 +1,15 @@
+import { apiBaseOf, getServer } from '../lib/server';
 import { ApiError } from './errors';
+import { httpTransport } from './http';
 import type { Method, RequestOptions, Transport } from './transport';
 import type { AuthResponse, CatalogProduct, Customer, NewOrder, Order } from './types';
 
-// Sin VITE_API_URL la app habla con el servidor simulado (src/api/sim), que vive dentro de la app.
-// Con VITE_API_URL habla por HTTP con el servidor real.
-export const API_URL = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
-export const SIMULATED = !API_URL;
-
-let transportPromise: Promise<Transport> | null = null;
-// El simulador se carga aparte (import dinámico): con servidor real nunca se descarga
-const transport = () =>
-  (transportPromise ??= SIMULATED
-    ? import('./sim/transport').then((m) => m.simTransport)
-    : import('./http').then((m) => m.httpTransport(API_URL)));
+// La API vive en el mismo servidor que la sincronización con la caja (ver API.md)
+function transport(): Transport {
+  const server = getServer();
+  if (!server) throw new ApiError(0, 'sin-servidor', 'Falta la dirección del servidor de la tienda.');
+  return httpTransport(apiBaseOf(server));
+}
 
 let token: string | null = null;
 let onExpired: (() => void) | null = null;
@@ -26,7 +23,7 @@ export const onSessionExpired = (fn: (() => void) | null) => {
 };
 
 async function call<T>(method: Method, path: string, opts: Omit<RequestOptions, 'token'> = {}): Promise<T> {
-  const t = await transport();
+  const t = transport();
   const sent = token;
   try {
     return await t.request<T>(method, path, { ...opts, token: sent });
@@ -41,13 +38,8 @@ export const api = {
   register: (input: { name: string; email: string; phone: string; password: string }) =>
     call<AuthResponse>('POST', '/auth/registro', { body: input }),
   login: (email: string, password: string) => call<AuthResponse>('POST', '/auth/entrar', { body: { email, password } }),
-  // El celular de la tienda ya pasó la vinculación con la caja; el servidor le da su token de dispositivo
-  linkDevice: (deviceId: string, name: string) => call<{ token: string }>('POST', '/auth/dispositivo', { body: { deviceId, name } }),
   logout: () => call<void>('POST', '/auth/salir'),
   me: () => call<Customer>('GET', '/yo'),
-
-  registerPush: (pushToken: string, platform: string) => call<void>('POST', '/yo/push', { body: { token: pushToken, platform } }),
-  unregisterPush: (pushToken: string) => call<void>('DELETE', '/yo/push', { body: { token: pushToken } }),
 
   catalog: () => call<CatalogProduct[]>('GET', '/catalogo'),
   orders: () => call<Order[]>('GET', '/pedidos'),
@@ -56,23 +48,16 @@ export const api = {
   createOrder: (order: NewOrder, idempotencyKey: string) =>
     call<Order>('POST', '/pedidos', { body: order, headers: { 'Idempotency-Key': idempotencyKey } }),
 
-  // Ruta de la tienda: con token de cliente debe responder 403 (se usa en la prueba de acceso)
-  storeOrders: () => call<Order[]>('GET', '/tienda/pedidos'),
-
   // Cambios de mis pedidos en vivo. Devuelve la función para cerrar.
   watchOrders(onOrder: (o: Order) => void, onStatus: (open: boolean) => void): () => void {
-    let close: (() => void) | null = null;
-    let cancelled = false;
     const sent = token;
     if (!sent) return () => undefined;
-    void transport().then((t) => {
-      if (cancelled) return;
-      close = t.events('/pedidos/eventos', sent, (type, data) => type === 'pedido' && onOrder(data as Order), onStatus);
-    });
-    return () => {
-      cancelled = true;
-      close?.();
-    };
+    try {
+      return transport().events('/pedidos/eventos', sent, (type, data) => type === 'pedido' && onOrder(data as Order), onStatus);
+    } catch {
+      onStatus(false);
+      return () => undefined;
+    }
   },
 };
 

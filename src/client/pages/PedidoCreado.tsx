@@ -7,7 +7,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
 import { StatusChip } from '../components/ui';
 import { useOrders } from '../lib/orders';
-import { alreadyAsked, declinePush, pushPermission, requestPush } from '../lib/push';
+import { alreadyAsked, declineNotify, notifyPermission, requestNotify } from '../lib/notify';
 
 export default function PedidoCreado() {
   const { id } = useParams<{ id: string }>();
@@ -23,18 +23,18 @@ export default function PedidoCreado() {
     if (!order || asked.current) return;
     asked.current = true;
     void (async () => {
-      if ((await pushPermission()) !== 'prompt' || (await alreadyAsked())) return;
+      if ((await notifyPermission()) !== 'prompt' || (await alreadyAsked())) return;
       await new Promise((r) => setTimeout(r, 700));
       void alert({
         header: '¿Te avisamos cuando esté listo?',
         message: 'Te mandamos una notificación cuando la tienda prepare tu pedido y cuando puedas pasar a recogerlo. Nada más.',
         backdropDismiss: false,
         buttons: [
-          { text: 'Ahora no', role: 'cancel', handler: () => void declinePush() },
+          { text: 'Ahora no', role: 'cancel', handler: () => void declineNotify() },
           {
             text: 'Sí, avisarme',
             handler: () => {
-              void requestPush().then((p) => {
+              void requestNotify().then((p) => {
                 if (p === 'denied') {
                   void toast({
                     message: 'No recibirás avisos. Puedes activarlos en Ajustes del teléfono › Apps › Abarré › Notificaciones. Mientras, revisa «Mis pedidos».',
@@ -62,7 +62,7 @@ export default function PedidoCreado() {
               <span className="cl-created-icon"><IonIcon icon={checkmarkCircle} /></span>
               <h1>¡Recibimos tu pedido!</h1>
               <p className="cl-folio">
-                Folio <strong>#{order.folio}</strong>
+                Folio <strong>{order.folio}</strong>
               </p>
               <StatusChip status={order.status} />
               <p className="muted">

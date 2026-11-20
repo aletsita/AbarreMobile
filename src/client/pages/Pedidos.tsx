@@ -45,7 +45,7 @@ export default function Pedidos() {
           <li key={o.id}>
             <button type="button" className="card cl-order" onClick={() => router.push(`/cliente/pedido/${o.id}`)}>
               <span className="cl-order-main">
-                <strong>Pedido #{o.folio}</strong>
+                <strong>Pedido {o.folio}</strong>
                 <span className="muted">
                   {dateTime(o.createdAt)} · {o.items.reduce((n, i) => n + i.qty, 0)} piezas
                 </span>
