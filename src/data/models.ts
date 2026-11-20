@@ -13,6 +13,8 @@ export interface Product {
   minStock: number;
   barcode: string;
   photo?: string;
+  // Texto que ven los clientes en el detalle del producto
+  description?: string;
 }
 
 export interface SaleItem {

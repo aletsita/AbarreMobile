@@ -11,7 +11,6 @@
 .cl-price { font-weight: 800; font-size: 1.12rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--t-ink); white-space: nowrap; }
 .cl-price sup { position: relative; top: -0.48em; margin-left: 1px; font-size: 0.58em; vertical-align: baseline; }
 .cl-price.is-offer { color: var(--t-accent); }
-.cl-out { display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--t-surface-3); color: var(--t-muted); font-size: 0.76rem; font-weight: 700; }
 
 /* Tarjeta compacta del catálogo */
 .pc { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -238,6 +237,18 @@
 .cl-detail-pickup { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 12px; padding: 12px 14px; border: 1px solid var(--t-border); border-radius: var(--t-radius); background: var(--t-surface); font-size: 0.88rem; line-height: 1.35; }
 .cl-detail-pickup ion-icon { font-size: 22px; color: var(--ion-color-primary); flex-shrink: 0; }
 .cl-detail p { margin: 4px 0 0; }
+.cl-detail-stock { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.cl-detail-stock .muted { font-size: 0.88rem; }
+.cl-detail-desc { width: 100%; margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--t-border); }
+.cl-detail-desc h2 { margin: 0 0 6px; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--t-muted); }
+.cl-detail-desc p { margin: 0; font-size: 1rem; line-height: 1.55; color: var(--t-ink); }
+
+/* Disponibilidad sin cantidades */
+.cl-avail { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 0.84rem; font-weight: 700; }
+.cl-avail::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.cl-avail.is-ok { background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.cl-avail.is-low { background: var(--t-warning-bg); color: var(--t-warning-text); }
+.cl-avail.is-out { background: var(--t-surface-3); color: var(--t-muted); }
 .cl-foot-row { display: flex; align-items: center; gap: 12px; }
 .cl-grow { flex: 1; }
 
@@ -350,15 +361,6 @@
 .cl-notif p { margin: 0 0 6px; font-size: 0.92rem; line-height: 1.4; }
 .cl-notif ion-button { margin: 4px 0 0; }
 .cl-logout { margin-top: 24px; }
-
-/* Panel de simulación */
-.cl-sim { margin-top: 28px; padding: 16px; border: 1.5px dashed var(--t-border-strong); border-radius: var(--t-radius-lg); }
-.cl-sim .section-title { display: flex; align-items: center; gap: 6px; margin-top: 0; }
-.cl-sim > p { margin: 0 0 10px; font-size: 0.84rem; }
-.cl-sim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.cl-sim-grid ion-button { margin: 0; font-size: 0.78rem; white-space: normal; height: auto; min-height: 36px; }
-.cl-sim-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 0.9rem; border-bottom: 1px solid var(--t-border); }
-.cl-sim-result { margin: 10px 0 0; font-size: 0.86rem; font-weight: 600; }
 
 /* Código para recoger */
 .cl-code { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }

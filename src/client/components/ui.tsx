@@ -65,6 +65,15 @@ export function Price({ value, className = '' }: { value: number; className?: st
   );
 }
 
+// Al cliente no se le dice cuántas piezas hay: solo si está disponible, si quedan pocas o si se agotó
+export const LOW_STOCK = 5;
+
+export function Availability({ stock }: { stock: number }) {
+  if (stock < 1) return <span className="cl-avail is-out">Agotado</span>;
+  if (stock <= LOW_STOCK) return <span className="cl-avail is-low">¡Quedan pocas piezas!</span>;
+  return <span className="cl-avail is-ok">Disponible</span>;
+}
+
 // Tarjeta compacta del catálogo: "+" para agregar y, ya en el carrito, selector de cantidad
 export function ProductCard({ product: p }: { product: CatalogProduct }) {
   const cart = useCart();
@@ -112,7 +121,7 @@ export function ProductCard({ product: p }: { product: CatalogProduct }) {
       <button type="button" className="pc-body" onClick={open} tabIndex={-1} aria-hidden="true">
         <Price value={p.price} className="pc-price" />
         <span className="pc-name">{p.name}</span>
-        {!soldOut && p.stock <= 5 && <span className="pc-left">Quedan {p.stock}</span>}
+        {!soldOut && p.stock <= LOW_STOCK && <span className="pc-left">Pocas piezas</span>}
       </button>
     </article>
   );
