@@ -398,6 +398,9 @@ function reducer(s: Data, a: Action): Data {
         creditMovements: [a.movement, ...s.creditMovements],
         customers: s.customers.map((c) => (c.id === a.movement.customerId ? { ...c, balance: Math.max(0, c.balance - a.movement.amount) } : c)),
       };
+    default:
+      // Mensajes de la caja que este celular no usa (por ejemplo, los de Pide y recoge)
+      return s;
   }
 }
 
