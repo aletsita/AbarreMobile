@@ -69,7 +69,7 @@ export default function PedidoDetalle() {
 
   return (
     <IonPage>
-      <AppHeader title={`Pedido #${order.folio}`} backHref="/cliente/pedidos" />
+      <AppHeader title={`Pedido ${order.folio}`} backHref="/cliente/pedidos" />
       <IonContent>
         <IonRefresher slot="fixed" onIonRefresh={(e) => void load().finally(() => e.detail.complete())}>
           <IonRefresherContent />

@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { api } from '../../api';
 import { errorMessage } from '../../api/errors';
 import { STATUS_LABEL, type Order } from '../../api/types';
+import { notifyOrder } from './notify';
 
 interface OrdersState {
   orders: Order[];
@@ -14,7 +15,7 @@ interface OrdersState {
   live: boolean;
   refresh: () => Promise<void>;
   upsert: (o: Order) => void;
-  // Pedido que cambió fuera de esta pantalla (SSE o push): lo guarda y avisa con un toast si cambió su estado
+  // Pedido que cambió fuera de esta pantalla (en vivo): lo guarda y avisa si cambió su estado
   incoming: (o: Order) => void;
 }
 
@@ -42,14 +43,15 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     setOrders((list) => sortOrders([o, ...list.filter((x) => x.id !== o.id)]));
   }, []);
 
-  // Un cambio que llega en vivo o por push con la app abierta: aviso dentro de la app (una sola vez)
+  // Un cambio que llega en vivo: aviso dentro de la app y, si no está a la vista, en la barra de notificaciones
   const incoming = useCallback(
     (o: Order) => {
       const before = known.current.get(o.id);
       upsert(o);
       if (before && before !== o.status) {
+        void notifyOrder(o);
         void toast({
-          message: `Pedido #${o.folio}: ${STATUS_LABEL[o.status]}`,
+          message: `Pedido ${o.folio}: ${STATUS_LABEL[o.status]}`,
           duration: 4000,
           color: o.status === 'listo' ? 'success' : 'primary',
           position: 'top',
