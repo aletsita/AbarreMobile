@@ -61,3 +61,11 @@
 .link-server { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; font-size: 0.86rem; color: var(--t-muted); }
 .link-server ion-icon { font-size: 17px; }
 .link-server strong { color: var(--ion-text-color); }
+
+/* Saludo al personal que acaba de iniciar sesión */
+.link-hello { display: flex; align-items: flex-start; gap: 8px; padding: 14px 16px; border-radius: var(--t-radius); background: var(--t-primary-bg); }
+.link-hello > div { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.link-hello strong { font-size: 1.08rem; }
+.link-hello span { font-size: 0.9rem; line-height: 1.45; color: var(--t-muted); }
+.link-hello b { color: var(--t-ink); }
+.link-hello ion-button { margin: -4px -8px 0 0; flex-shrink: 0; }
