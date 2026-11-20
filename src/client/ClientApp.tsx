@@ -2,11 +2,13 @@ import { IonBadge, IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, 
 import { cartOutline, personCircleOutline, receiptOutline, storefrontOutline } from 'ionicons/icons';
 import { useEffect } from 'react';
 import { Redirect, Route } from 'react-router-dom';
+import { isActive } from '../api/types';
 import { useSession } from '../session/SessionContext';
 import { CartProvider, useCart } from './lib/cart';
 import { CatalogProvider } from './lib/catalog';
 import { startNotify, stopNotify } from './lib/notify';
 import { OrdersProvider, useOrders } from './lib/orders';
+import CambiarPedido from './pages/CambiarPedido';
 import Carrito from './pages/Carrito';
 import Confirmar from './pages/Confirmar';
 import PedidoCreado from './pages/PedidoCreado';
@@ -20,7 +22,7 @@ import './client.css';
 function ClientTabs() {
   const { count } = useCart();
   const { orders } = useOrders();
-  const active = orders.filter((o) => o.status !== 'entregado').length;
+  const active = orders.filter(isActive).length;
 
   return (
     <IonTabs>
@@ -84,6 +86,7 @@ export default function ClientApp() {
             <Route exact path="/cliente/confirmar" component={Confirmar} />
             <Route exact path="/cliente/pedido-creado/:id" component={PedidoCreado} />
             <Route exact path="/cliente/pedido/:id" component={PedidoDetalle} />
+            <Route exact path="/cliente/pedido/:id/cambiar" component={CambiarPedido} />
             <Route>
               <Redirect to="/cliente/tienda" />
             </Route>

@@ -36,7 +36,15 @@ export interface CatalogProduct {
   photo?: string;
 }
 
-export type OrderStatus = 'pendiente' | 'preparando' | 'listo' | 'entregado';
+export type OrderStatus = 'pendiente' | 'preparando' | 'listo' | 'entregado' | 'cancelado';
+
+// La caja canceló el pedido. `missing`: ids de los productos que se agotaron.
+export interface OrderCancel {
+  reason: 'sin-existencia' | 'otro';
+  missing: string[];
+  note?: string;
+  at: string;
+}
 
 export interface OrderItem {
   productId: string;
@@ -56,6 +64,9 @@ export interface Order {
   history: { status: OrderStatus; at: string }[];
   // Código para recoger (6 dígitos). Solo lo ve el dueño del pedido; la caja lo pide al entregar.
   pickupCode?: string;
+  cancel?: OrderCancel;
+  // Lo que hizo el cliente con un pedido cancelado
+  resolved?: { action: 'quitar' | 'reemplazar'; at: string };
 }
 
 export interface NewOrder {
@@ -85,6 +96,9 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   preparando: 'Preparando',
   listo: 'Listo para recoger',
   entregado: 'Entregado',
+  cancelado: 'Cancelado',
 };
 
-export const isActive = (o: Order) => o.status !== 'entregado';
+// Cancelado y el cliente todavía no decide qué hacer: se queda en «Activos» para que lo vea
+export const needsAction = (o: Order) => o.status === 'cancelado' && !o.resolved;
+export const isActive = (o: Order) => (o.status !== 'entregado' && o.status !== 'cancelado') || needsAction(o);

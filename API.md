@@ -17,7 +17,7 @@ La caja sigue siendo la dueña del inventario y de los pedidos. El servidor **es
 
 - Del `SNAPSHOT` de la caja toma los productos, los usuarios y los pedidos. Cuando necesita datos al momento publica un `WHO` y espera el siguiente `SNAPSHOT` (hasta 3 s).
 - Un pedido nuevo se le manda a la caja con `ORDER_RECEIVED`. La caja lo acepta o lo rechaza, y el siguiente `SNAPSHOT` lo confirma y trae su folio (`P-0006`).
-- `ORDER_ADVANCE` y `ORDER_DELIVER` de la caja actualizan el pedido y se avisan en vivo al cliente.
+- `ORDER_ADVANCE`, `ORDER_DELIVER` y `ORDER_CANCEL` de la caja actualizan el pedido y se avisan en vivo al cliente.
 
 Si la caja no está abierta, el catálogo responde con la última copia conocida y los pedidos nuevos responden `503`.
 
@@ -62,6 +62,7 @@ Reglas: nombre de 2 letras o más, correo válido, teléfono de 10 dígitos y co
 | `GET /pedidos` | Mis pedidos |
 | `GET /pedidos/:id` | Uno de mis pedidos (`404` si es de otra persona) |
 | `POST /pedidos` | `201` el pedido ya aceptado por la caja |
+| `POST /pedidos/:id/resolver` | `{ accion: 'quitar' \| 'reemplazar' }` para un pedido cancelado. `409` si no está cancelado |
 | `GET /pedidos/eventos?token=…` | Server-Sent Events: evento `pedido` con el pedido completo cada vez que cambia |
 
 `POST /pedidos` lleva el encabezado `Idempotency-Key` (la misma clave regresa el mismo pedido) y el cuerpo:
@@ -76,9 +77,20 @@ Reglas: nombre de 2 letras o más, correo válido, teléfono de 10 dígitos y co
 Pedido:
 
 ```ts
-{ id, folio: 'P-0006', status: 'pendiente' | 'preparando' | 'listo' | 'entregado', items, total, note, createdAt,
-  history: { status, at }[], pickupCode }
+{ id, folio: 'P-0006', status: 'pendiente' | 'preparando' | 'listo' | 'entregado' | 'cancelado', items, total, note, createdAt,
+  history: { status, at }[], pickupCode,
+  cancel?: { reason: 'sin-existencia' | 'otro', missing: string[], note?, at },  // missing: ids de los productos agotados
+  resolved?: { action: 'quitar' | 'reemplazar', at } }                            // lo que decidió el cliente
 ```
+
+### Pedido cancelado
+
+La caja puede cancelar cualquier pedido que no se ha entregado (**Pedidos → 🗑 / Cancelar pedido**), por **falta de existencia** (marcando qué productos se agotaron) o por **otro motivo** (con un texto para el cliente). Sus piezas dejan de estar apartadas.
+
+En la app el pedido sigue en **Activos**, marcado en rojo, hasta que el cliente decide:
+
+- **Quitar pedido**: `resolver` con `quitar`; pasa al historial.
+- **Elegir otro producto**: abre `/cliente/pedido/:id/cambiar`, que sugiere productos parecidos que sí hay (otra marca u otro tamaño: comparten palabras del nombre o la categoría) y deja volver a agregar los demás productos del pedido. Al tocar **Ir al carrito** se manda `resolver` con `reemplazar` y el cliente confirma un pedido nuevo como siempre.
 
 ## Notificaciones
 
