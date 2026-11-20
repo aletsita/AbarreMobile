@@ -44,6 +44,9 @@ export const api = {
   catalog: () => call<CatalogProduct[]>('GET', '/catalogo'),
   orders: () => call<Order[]>('GET', '/pedidos'),
   order: (id: string) => call<Order>('GET', `/pedidos/${encodeURIComponent(id)}`),
+  // Pedido cancelado por la tienda: quitarlo de los activos o pasar a elegir otros productos
+  resolveOrder: (id: string, accion: 'quitar' | 'reemplazar') =>
+    call<Order>('POST', `/pedidos/${encodeURIComponent(id)}/resolver`, { body: { accion } }),
   // 409 → ApiError con details: OrderConflict
   createOrder: (order: NewOrder, idempotencyKey: string) =>
     call<Order>('POST', '/pedidos', { body: order, headers: { 'Idempotency-Key': idempotencyKey } }),

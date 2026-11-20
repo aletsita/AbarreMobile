@@ -18,6 +18,7 @@ const BODY: Record<OrderStatus, string> = {
   preparando: 'La tienda ya está preparando tu pedido.',
   listo: 'Ya puedes pasar a recogerlo. Muestra tu código en la caja.',
   entregado: '¡Gracias por tu compra!',
+  cancelado: 'La tienda canceló tu pedido. Toca para ver qué pasó.',
 };
 
 let foreground = true;
@@ -105,7 +106,7 @@ export async function notifyOrder(o: Order) {
       {
         id: notificationId(o.id),
         title: `Pedido ${o.folio}: ${STATUS_LABEL[o.status]}`,
-        body: BODY[o.status],
+        body: o.cancel?.reason === 'sin-existencia' ? 'Se agotó un producto. Toca para quitar el pedido o elegir otro producto.' : BODY[o.status],
         channelId: CHANNEL_ID,
         extra: { orderId: o.id },
       },
