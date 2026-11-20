@@ -2,9 +2,9 @@
 
 # Protocolo de sincronización caja ↔ celular
 
-Contrato entre **tendero-web** (la caja y el servidor) y **tendero-mobile** (la app del celular). Los dos proyectos tienen su propia copia del código que lo implementa (`src/lib/sync.ts` y `src/context/AppContext.tsx`). Si cambias algo de este documento, cámbialo en los dos proyectos y en las dos copias de este archivo.
+Contrato entre **tendero-web** (la caja y el servidor) y **tendero-mobile** (la app del celular). Los dos proyectos tienen su propia copia del código que lo implementa (`src/lib/sync.ts` y `src/context/AppContext.tsx`; en tendero-mobile están en `src/admin/lib/sync.ts` y `src/admin/context/AppContext.tsx`). Si cambias algo de este documento, cámbialo en los dos proyectos y en las dos copias de este archivo.
 
-- **Versión del formato de datos:** `4` (constante `VERSION` en `AppContext.tsx`)
+- **Versión del formato de datos:** `5` (constante `VERSION` en `AppContext.tsx`)
 - **Canal:** `tendero` (nombre del `BroadcastChannel`)
 
 ## Transporte
@@ -27,7 +27,7 @@ El servidor (`server/index.js` en tendero-web) solo reenvía mensajes: no los gu
 ### CORS
 
 - `OPTIONS /__sync` responde `204` (preflight).
-- Si el `Origin` de la petición está en `ALLOWED_ORIGINS`, el servidor añade `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Methods: GET, POST, OPTIONS` y `Access-Control-Allow-Headers: Content-Type`.
+- Si el `Origin` de la petición está en `ALLOWED_ORIGINS` (o, cuando esa variable no está definida, es una IP de red local: `10.x`, `172.16–31.x`, `192.168.x`), el servidor añade `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Methods: GET, POST, OPTIONS` y `Access-Control-Allow-Headers: Content-Type`.
 - Orígenes permitidos por defecto: `http://localhost:5173` (web en desarrollo), `http://localhost:5174` (mobile en el navegador), `http://localhost` (app Android en modo desarrollo, `androidScheme: http`), `https://localhost` (app Android en producción) y `capacitor://localhost` (iOS).
 
 ### URL del servidor
@@ -35,7 +35,18 @@ El servidor (`server/index.js` en tendero-web) solo reenvía mensajes: no los gu
 | Proyecto | Valor |
 |---|---|
 | tendero-web | `VITE_SYNC_URL` o, si falta, `/__sync` en el mismo origen (Vite lo reenvía al servidor en desarrollo; en producción lo sirve el mismo servidor que sirve la web) |
-| tendero-mobile | `VITE_SYNC_URL` obligatoria y absoluta, por ejemplo `http://192.168.1.20:8787/__sync` |
+| tendero-mobile | La que llega en el QR de vinculación o se escribe a mano, guardada en `tendero.servidor`. `VITE_SYNC_URL` (opcional) es solo el valor inicial. |
+
+### `GET /__sync/info`: direcciones del servidor
+
+Responde JSON sin abrir conexión SSE. La caja lo usa para saber qué dirección poner en el QR:
+
+```json
+{ "app": "abarre-sync", "port": 8787, "clients": 2,
+  "urls": [{ "url": "http://192.168.1.20:8787/__sync", "name": "Wi-Fi", "virtual": false }] }
+```
+
+`urls` lista las IPv4 de la red local (las de adaptadores virtuales van al final). Si el servidor tiene `PUBLIC_SYNC_URL`, esa va primero.
 
 ### Entre pestañas del mismo navegador
 
@@ -62,7 +73,7 @@ interface Envelope {
 | `WHO` | — | Todos, al abrir la conexión y cuando se abre el `EventSource` | Responde con `PING` si tiene clave de presencia y está en línea. La caja responde además con un `SNAPSHOT`. |
 | `PING` | `key: string` | Todos, cada 4 s mientras están en línea | Marca `key` como presente. Una clave sin `PING` durante 10 s deja de estar presente. |
 | `BYE` | `key: string` | Todos, al perder la conexión, al cerrar o en `pagehide` | Quita `key` de los presentes. La caja actualiza `lastSeen` del dispositivo. |
-| `SNAPSHOT` | `data: Data` | Solo la caja | El celular reemplaza todos sus datos si `data.version === 4`. La caja lo ignora. |
+| `SNAPSHOT` | `data: Data` | Solo la caja | El celular reemplaza todos sus datos si `data.version === 5`. La caja lo ignora. |
 
 Claves de presencia: la caja usa `'panel'` y cada celular vinculado usa el `id` de su `Device`. Un celular sin vincular no publica `PING`.
 
@@ -92,23 +103,39 @@ Cada cliente aplica estas acciones con el mismo reducer (`reducer` en `AppContex
 | `UPDATE_STORE` | `store: Store` | caja |
 | `UPDATE_TICKET_CONFIG` | `config: TicketConfig` | caja |
 | `UPSERT_USER` | `user: User, prevEmail?: string` | caja |
+| `ACCOUNT_NEW` | `id: string, at: number` | caja: deja la cuenta activa en espera (o la descarta si está vacía y sin cliente) y abre una nueva llamada `Cuenta N` |
+| `ACCOUNT_SWITCH` | `id: string` | caja: la cuenta activa pasa a espera y la cuenta `id` se vuelve la activa |
+| `ACCOUNT_UPDATE` | `id: string, name: string, customerId: string \| null` | caja: nombre y cliente de una cuenta abierta |
+| `UPSERT_CUSTOMER` | `customer: Customer` | caja. El reducer conserva el `balance` que ya tenía el cliente (0 si es nuevo) |
+| `CREDIT_PAYMENT` | `movement: CreditMovement` (`type: 'abono'`) | caja: abono de un cliente, resta `amount` a su `balance` |
 | `REPLACE_DATA` | `data: Data` | no se publica: el celular la aplica localmente al recibir un `SNAPSHOT` |
 
-Los tipos `Product`, `Sale`, `Device`, `CashCut`, `Shift`, `CashMovement`, `Store`, `TicketConfig` y `User` están en `src/data/models.ts`.
+Los tipos `Product`, `Sale`, `Device`, `CashCut`, `Shift`, `CashMovement`, `Customer`, `CreditMovement`, `Store`, `TicketConfig` y `User` están en `src/data/models.ts`.
 
-### `Data` (versión 4)
+#### Cuentas abiertas y crédito
+
+- `ticket` son las líneas de la cuenta activa y `account` sus datos; las demás cuentas abiertas esperan en `parked`. `SCAN_TO_REGISTER`, `TICKET_*` y `CONFIRM_SALE` siempre actúan sobre la cuenta activa.
+- `SCAN_TO_REGISTER` guarda en el envío `accountId = account.id`. `REMOVE_SENT` quita las piezas de la cuenta a la que llegaron, esté activa o en espera; `CONFIRM_SALE` y `TICKET_CLEAR` solo cambian el estado de los envíos de la cuenta activa (o sin `accountId`).
+- Al cobrar (`CONFIRM_SALE`) o cancelar (`TICKET_CLEAR`) la cuenta activa queda vacía, con el mismo `id`, `customerId: null` y el siguiente nombre `Cuenta N` libre entre las cuentas en espera.
+- Una venta con `method: 'credito'` y `customerId` crea en `CONFIRM_SALE` el `CreditMovement` `{ id: 'cr-' + sale.id, type: 'cargo', amount: sale.total, saleId }` y suma `sale.total` al `balance` del cliente. Si el cliente abona algo al momento, la caja publica después un `CREDIT_PAYMENT` con `saleId` y `sale.paid` es ese abono.
+
+### `Data` (versión 5)
 
 ```ts
 interface Data {
-  version: 4;
+  version: 5;
   store: Store;
   ticketConfig: TicketConfig;
   users: User[];
   products: Product[];
   movements: Movement[];
-  ticket: { product: Product; qty: number; source: 'movil' | 'manual'; flashAt: number }[];
+  ticket: TicketLine[]; // { product: Product; qty: number; source: 'movil' | 'manual'; flashAt: number }
+  account: { id: string; name: string; customerId: string | null; openedAt: number };
+  parked: { id: string; name: string; customerId: string | null; openedAt: number; lines: TicketLine[] }[];
+  customers: Customer[];
+  creditMovements: CreditMovement[];
   sales: Sale[];
-  sent: { id: string; product: Product; qty: number; at: number; status: 'en-caja' | 'cobrado' | 'cancelado'; deviceId: string }[];
+  sent: { id: string; product: Product; qty: number; at: number; status: 'en-caja' | 'cobrado' | 'cancelado'; deviceId: string; accountId?: string }[];
   lastScan: { name: string; deviceId: string; at: number } | null;
   cuts: CashCut[];
   cashMovements: CashMovement[];
@@ -124,8 +151,14 @@ Si cambias la forma de `Data`, sube `VERSION` en los dos proyectos. Un cliente d
 
 ## Vinculación
 
-1. La caja publica `SET_PAIRING` con un código de 6 dígitos que vence en 5 minutos. El QR contiene `ABARRE-LINK:<código>`; el celular también acepta `TENDERO-LINK:<código>`.
-2. El celular busca el código en su copia de los datos, que recibió en el `SNAPSHOT`. Si coincide y no ha vencido, publica `ADD_DEVICE` con su nuevo `Device` y después `SET_PAIRING` con `pairing: null`.
+1. La caja publica `SET_PAIRING` con un código de 6 dígitos que vence en 5 minutos. El QR contiene el código y la dirección del servidor (`src/lib/link.ts` en tendero-web y `src/admin/lib/link.ts` en tendero-mobile, iguales):
+
+   ```
+   abarre://vincular?codigo=123456&servidor=http%3A%2F%2F192.168.1.20%3A8787%2F__sync
+   ```
+
+   El celular también acepta los formatos anteriores, solo con el código: `ABARRE-LINK:<código>` y `TENDERO-LINK:<código>`. Una dirección escrita a mano (`192.168.1.20`, `192.168.1.20:8787`, `https://dominio.com`) se completa con el puerto `8787` y la ruta `/__sync`.
+2. El celular abre la conexión con esa dirección, publica `WHO` y espera un `SNAPSHOT` nuevo de la caja (hasta 10 s; si no llega, avisa «La caja no respondió»). Con los datos recién recibidos busca el código. Si coincide y no ha vencido, publica `ADD_DEVICE` con su nuevo `Device` y después `SET_PAIRING` con `pairing: null`.
 3. Desde ese momento el celular publica `PING` con `key = device.id`.
 
 ## Cambios sin conexión
@@ -146,10 +179,11 @@ Todos los valores se guardan como JSON.
 
 | Clave | Proyecto | Contenido |
 |---|---|---|
-| `tendero.datos` | ambos | `Data` (versión 4) |
+| `tendero.datos` | ambos | `Data` (versión 5) |
 | `tendero.pendientes.panel` | web | Cola `Op[]` de la caja |
 | `tendero.pendientes.movil` | mobile | Cola `Op[]` del celular. En la app nativa se guarda en `@capacitor/preferences` con la misma clave y el mismo formato. |
 | `tendero.sesion` | web | Correo del usuario con sesión abierta |
 | `tendero.ultimoCorreo` | web | Último correo usado para entrar (texto plano, prellena el inicio de sesión) |
 | `tendero.dispositivo` | mobile | `id` del `Device` vinculado en este celular |
+| `tendero.servidor` | mobile | URL del servidor de sincronización elegida al vincular (`http://IP:8787/__sync`) |
 | `abarre.tema` | ambos | `'sistema' \| 'claro' \| 'oscuro'` (texto plano, sin JSON) |

@@ -24,6 +24,11 @@
 
         </activity>
 
+        <!-- Las notificaciones push que llegan con la app cerrada usan el canal «pedidos» (importancia alta) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="pedidos" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -41,4 +46,6 @@
     <!-- Escáner de códigos (ML Kit) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Avisos de pedidos (Android 13+ lo pide en tiempo de ejecución, después del primer pedido) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

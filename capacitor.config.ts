@@ -4,7 +4,9 @@ import { existsSync, readFileSync } from 'node:fs';
 // CAP_MODE elige cómo carga la app y a qué servidor puede hablar:
 //   development: la app se sirve como http://localhost y puede abrir http://IP-de-tu-PC:8787 (texto claro).
 //   production:  la app se sirve como https://localhost y solo habla con un servidor HTTPS.
-// Si no se define, se deduce de VITE_SYNC_URL (http:// → development, https:// → production).
+// Si no se define, se deduce de VITE_SYNC_URL (https:// → production; http:// o vacía → development).
+// La dirección real la elige el celular al vincularse (QR o escrita a mano); en la red local es http://, así
+// que para usar la app con la caja de la tienda compila en development.
 // Se lee del entorno o del archivo .env; se aplica al ejecutar `npx cap sync`.
 const dotenv = (file: string): Record<string, string> =>
   existsSync(file)

@@ -8,9 +8,10 @@ interface Props {
   end?: ReactNode;
   showConnection?: boolean;
   children?: ReactNode;
+  offlineMessage?: string;
 }
 
-export function AppHeader({ title, backHref, end, showConnection = true, children }: Props) {
+export function AppHeader({ title, backHref, end, showConnection = true, children, offlineMessage }: Props) {
   return (
     <IonHeader className="ion-no-border app-header">
       <IonToolbar>
@@ -25,7 +26,7 @@ export function AppHeader({ title, backHref, end, showConnection = true, childre
           {showConnection && <ConnectionBadge />}
         </IonButtons>
       </IonToolbar>
-      <OfflineBar />
+      <OfflineBar message={offlineMessage} />
       {children}
     </IonHeader>
   );
