@@ -1,13 +1,13 @@
 import { IonApp, IonRouterOutlet, IonSpinner, setupIonicReact, useIonToast } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Redirect, Route, useLocation } from 'react-router-dom';
-import { canEnter, homeFor, STAFF_LINK_PATH } from './session/guard';
+import { canEnter, homeFor } from './session/guard';
 import { guardedHistory, setGuardRole } from './session/history';
 import { SessionProvider, useSession } from './session/SessionContext';
-import Inicio from './inicio/Inicio';
 import Entrar from './inicio/Entrar';
 import Registro from './inicio/Registro';
+import { Splash } from './inicio/Splash';
 
 setupIonicReact({ mode: 'md' });
 
@@ -28,11 +28,10 @@ function Loading() {
 function PublicApp() {
   return (
     <IonRouterOutlet>
-      <Route exact path="/inicio" component={Inicio} />
-      <Route exact path="/cliente/entrar" component={Entrar} />
-      <Route exact path="/cliente/registro" component={Registro} />
+      <Route exact path="/entrar" component={Entrar} />
+      <Route exact path="/registro" component={Registro} />
       <Route>
-        <Redirect to="/inicio" />
+        <Redirect to="/entrar" />
       </Route>
     </IonRouterOutlet>
   );
@@ -63,25 +62,35 @@ function RoleGate() {
       </Suspense>
     );
   }
-  // Sin sesión solo se carga la parte de la tienda si eligieron «Soy de la tienda» (vincular)
-  if (role === 'dispositivo' || pathname === STAFF_LINK_PATH) {
+  if (role === 'personal') {
     return (
       <Suspense fallback={<Loading />}>
-        <AdminApp />
+        <AdminApp key={session!.userId} />
       </Suspense>
     );
   }
   return <PublicApp />;
 }
 
-export default function App() {
+function Shell() {
+  const { status } = useSession();
+  const [splash, setSplash] = useState(true);
   return (
-    <SessionProvider>
+    <>
       <IonApp>
         <IonReactRouter history={guardedHistory}>
           <RoleGate />
         </IonReactRouter>
       </IonApp>
+      {splash && <Splash ready={status === 'lista'} onDone={() => setSplash(false)} />}
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <SessionProvider>
+      <Shell />
     </SessionProvider>
   );
 }
