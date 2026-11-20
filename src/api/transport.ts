@@ -6,7 +6,7 @@ export interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-// Cómo llegan las peticiones al servidor: por HTTP (http.ts) o al servidor simulado (sim/transport.ts)
+// Cómo llegan las peticiones al servidor (http.ts)
 export interface Transport {
   // Resuelve con el cuerpo de la respuesta o rechaza con ApiError
   request<T>(method: Method, path: string, opts?: RequestOptions): Promise<T>;

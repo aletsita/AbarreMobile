@@ -9,7 +9,7 @@ Contrato entre **tendero-web** (la caja y el servidor) y **tendero-mobile** (la 
 
 ## Transporte
 
-El servidor (`server/index.js` en tendero-web) solo reenvía mensajes: no los guarda ni los interpreta. Cada cliente recibe lo que publica cualquier cliente, también lo que publicó él mismo, y descarta lo suyo comparando `from`.
+El servidor (`server/index.js` en tendero-web) reenvía los mensajes sin cambiarlos. Cada cliente recibe lo que publica cualquier cliente, también lo que publicó él mismo, y descarta lo suyo comparando `from`. La API de la app del celular (`server/api.js`, ver `API.md` en tendero-mobile) escucha el canal: guarda una copia de lo que trae cada `SNAPSHOT` (productos, usuarios y pedidos) y sigue `ORDER_ADVANCE` / `ORDER_DELIVER`. También publica como un equipo más (`from: servidor-…`): `WHO` cuando necesita datos al momento y `ORDER_RECEIVED` con los pedidos de los clientes.
 
 ### `GET /__sync`: recibir (Server-Sent Events)
 

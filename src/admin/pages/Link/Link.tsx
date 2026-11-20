@@ -23,6 +23,7 @@ import {
   wifiOutline,
 } from 'ionicons/icons';
 import { useRef, useState } from 'react';
+import { useSession } from '../../../session/SessionContext';
 import { AppHeader } from '../../../components/AppHeader';
 import { TextField } from '../../../components/Form';
 import { ScannerView } from '../../components/ScannerView';
@@ -58,6 +59,7 @@ function errorText(r: Exclude<LinkResult, 'ok'>, server: string) {
 export default function Link() {
   const { thisDevice, store, linkWithCode, unlink, server, serverStatus } = useApp();
   const [alert] = useIonAlert();
+  const { session, logout } = useSession();
   const [method, setMethod] = useState<Method>('qr');
   const [code, setCode] = useState('');
   const [address, setAddress] = useState(() => shortServer(server));
@@ -155,6 +157,16 @@ export default function Link() {
             </section>
           ) : (
             <>
+              <section className="link-hello">
+                <div>
+                  <strong>Hola, {session?.name.split(' ')[0]}</strong>
+                  <span>Entraste como <b>{session?.staffRole ?? 'personal'}</b>. Vincula este celular con la caja para empezar a escanear.</span>
+                </div>
+                <IonButton fill="clear" size="small" onClick={() => void logout()}>
+                  No soy yo
+                </IonButton>
+              </section>
+
               <ol className="link-steps">
                 <li>Conecta este celular a la <strong>misma red Wi‑Fi</strong> que la computadora de la caja.</li>
                 <li>En la caja abre <strong>Dispositivos</strong> y toca <strong>Vincular nuevo celular</strong>.</li>

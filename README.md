@@ -1,17 +1,20 @@
 # Tendero · Mobile (celular)
 
-La app del celular de Abarré. Tiene dos roles, y cada uno ve solo sus pantallas:
+La app del celular de Abarré. Al abrirla muestra una animación con el logo y luego **Iniciar sesión**. Todos entran con correo y contraseña, y la cuenta decide qué pantallas ve cada quien:
 
-- **Tienda (personal):** escanea o busca productos por código, los manda a la caja, da de alta productos nuevos y registra entradas de inventario.
-- **Cliente («Pide y recoge»):** se registra, arma su súper, hace el pedido, lo sigue en «Mis pedidos» y recibe avisos cuando la tienda cambia el estado. Paga al recoger.
+- **Personal de la tienda:** si el correo es el de un usuario activo de la caja (Dueño, Cajero o Inventario), primero vincula el celular con la caja y luego escanea o busca productos por código, los manda a la caja, da de alta productos nuevos y registra entradas de inventario.
+- **Cliente («Pide y recoge»):** cualquier otra cuenta. Arma su súper, hace el pedido, lo sigue en «Mis pedidos» y recibe notificaciones cuando la tienda cambia el estado. Paga al recoger.
 
 Es una app nativa de **Android** hecha con Capacitor. Durante el desarrollo también corre en el navegador.
 
-Hecho con React 18, TypeScript, Ionic React 8, Vite 5 y Capacitor 8 (`@capacitor/preferences`, `@capacitor-mlkit/barcode-scanning`, `@capacitor/push-notifications`, `@capacitor/app`, `capacitor-secure-storage-plugin`).
+Hecho con React 18, TypeScript, Ionic React 8, Vite 5 y Capacitor 8 (`@capacitor/preferences`, `@capacitor-mlkit/barcode-scanning`, `@capacitor/local-notifications`, `@capacitor/app`, `capacitor-secure-storage-plugin`).
 
-> **El backend de clientes aún no existe.** Mientras no se defina `VITE_API_URL`, la app usa un **servidor simulado** que vive dentro de ella (`src/api/sim`). La propuesta de rutas que simula está en [API_SIMULADA.md](API_SIMULADA.md); cuando llegue `API_CONTRACT.md` se ajusta `src/api/`.
+Todo pasa por el servidor del proyecto web ([tendero-web](../tendero-web), `npm run dev:server`):
 
-Se conecta al servidor de sincronización del proyecto web ([tendero-web](../tendero-web), `npm run dev:server`). El contrato entre los dos está en [SYNC_PROTOCOL.md](SYNC_PROTOCOL.md).
+- `/api`: cuentas, catálogo y pedidos. Ver [API.md](API.md).
+- `/__sync`: sincronización del celular de la tienda con la caja. Ver [SYNC_PROTOCOL.md](SYNC_PROTOCOL.md).
+
+**La caja tiene que estar abierta** (`npm run dev` en tendero-web, en el navegador) para que los clientes vean el catálogo actualizado y puedan hacer pedidos.
 
 ## Requisitos
 
@@ -25,22 +28,29 @@ npm install
 cp .env.example .env
 ```
 
-**No hace falta configurar la dirección del servidor.** El celular la toma al vincularse: viene dentro del QR que muestra la caja en **Dispositivos → Vincular nuevo celular**, o la escribes a mano junto con el código de 6 dígitos (por ejemplo `192.168.1.20:8787`). Se guarda en el teléfono (`tendero.servidor`) y se usa en adelante.
+La app usa **una sola dirección** del servidor (`tendero.servidor`, guardada en el teléfono) para la API y la sincronización. Se puede poner de tres formas:
 
-`VITE_SYNC_URL` en `.env` es **opcional**: solo da una dirección inicial antes de vincular.
+- En `.env` con `VITE_SYNC_URL`, como valor inicial al compilar.
+- En **Iniciar sesión → Servidor de la tienda → Cambiar** (por ejemplo `192.168.1.20:8787`).
+- Al vincular el celular de la tienda: viene dentro del QR de **Dispositivos → Vincular nuevo celular**.
 
-| Dónde corre la app | `VITE_SYNC_URL` inicial (opcional) |
+| Dónde corre la app | `VITE_SYNC_URL` inicial |
 |---|---|
 | Navegador en la misma PC (`npm run dev`) | `http://localhost:8787/__sync` |
 | Emulador de Android | `http://10.0.2.2:8787/__sync` (10.0.2.2 es la PC vista desde el emulador) |
 | Producción | `https://tu-dominio.com/__sync` |
 
+### Cuentas
+
+- **Clientes:** tocan **Crear una cuenta** en la app.
+- **Personal:** también crea su cuenta en la app, con el **mismo correo** que tiene en la caja (**Ajustes → Usuarios**). Si el usuario está activo en la caja, entra como personal; si lo desactivan, la próxima vez que inicie sesión entra como cliente.
+
 ### Conectar con la caja
 
 1. En la PC de la caja: `npm run dev:server` y `npm run dev` en tendero-web. El servidor imprime la dirección para el celular (`Para el celular (misma Wi-Fi): http://192.168.1.20:8787/__sync`).
 2. Conecta el celular a la misma Wi‑Fi.
-3. En la caja abre **Dispositivos → Vincular nuevo celular**.
-4. En el celular abre **Vincular con la caja** y escanea el QR, o elige **Escribir código** y pon la dirección y los 6 dígitos.
+3. Inicia sesión con una cuenta de personal. La app abre **Vincular con la caja**.
+4. En la caja abre **Dispositivos → Vincular nuevo celular** y en el celular escanea el QR, o elige **Escribir código** y pon la dirección y los 6 dígitos.
 
 En la app nativa la red local usa `http://`, así que compila en modo desarrollo (`CAP_MODE=development`, que es el valor por defecto si `VITE_SYNC_URL` no empieza con `https://`).
 
@@ -102,47 +112,41 @@ La cola de cambios sin subir (`tendero.pendientes.movil`) se guarda en `@capacit
 
 La regla: **el cliente no tiene acceso al escáner ni a nada de administración.** Se cuida en tres capas:
 
-1. **Servidor:** el rol viaja en el token (`role: 'cliente' | 'dispositivo'`) y las rutas de la tienda responden 403 al cliente. Hoy lo hace el servidor simulado; el real debe hacer lo mismo.
+1. **Servidor:** el rol viaja en el token firmado (`role: 'cliente' | 'personal'`) y se decide al iniciar sesión según los usuarios de la caja. Las rutas de pedidos responden 403 a quien no es cliente.
 2. **Código:** `src/admin/` (lo de la tienda) y `src/client/` (lo del cliente) son paquetes separados que se cargan con `React.lazy`. Una sesión de cliente nunca descarga el de la tienda (ni el escáner ni ML Kit).
 3. **Navegación:** `src/session/guard.ts` dice qué rutas puede abrir cada rol y `src/session/history.ts` cambia una ruta ajena por el inicio del rol antes de que la vea el router (URL escrita a mano, `push`, botón atrás). El permiso de cámara solo se pide dentro del escáner.
 
-El token se guarda en almacenamiento seguro (`capacitor-secure-storage-plugin`, Android Keystore), no en `localStorage` ni en Preferences. Al abrir la app, el rol del token decide a qué pantallas entra. Cambiar de rol exige cerrar sesión. Un 401 cierra la sesión y vuelve al inicio con un aviso.
+El token se guarda en almacenamiento seguro (`capacitor-secure-storage-plugin`, Android Keystore), no en `localStorage` ni en Preferences. Al abrir la app, el rol del token decide a qué pantallas entra. Cambiar de cuenta exige cerrar sesión (**Perfil** para clientes, **Ajustes** para el personal). Un 401 cierra la sesión y vuelve a **Iniciar sesión** con un aviso. Cerrar sesión no desvincula el celular de la caja.
 
-El celular de la tienda pide su token de rol dispositivo en cuanto se vincula con la caja (o al abrir la app, si ya estaba vinculado). Si no hay conexión sigue trabajando sin token, como antes, y lo pide cuando vuelve.
+## Notificaciones
 
-## Notificaciones (Firebase)
+Son **notificaciones locales** del sistema (`@capacitor/local-notifications`), sin Firebase. La app recibe en vivo los cambios de sus pedidos (`GET /api/pedidos/eventos`) y, si no está a la vista, muestra una notificación en la barra con sonido. Al tocarla se abre ese pedido. Con la app en primer plano el aviso aparece dentro de la app.
 
-Sin `google-services.json` la app compila y funciona: las notificaciones push quedan apagadas y el log dice `[push] No hay android/app/google-services.json…`. Con el servidor simulado, los avisos se simulan dentro de la app.
-
-Para activarlas:
-
-1. En la consola de Firebase crea una app Android con el paquete `com.tendero.app` y descarga `google-services.json`.
-2. Ponlo en **`android/app/google-services.json`** (está en `.gitignore`).
-3. No hay que cambiar Gradle: `android/build.gradle` ya trae `classpath 'com.google.gms:google-services:4.4.4'` y `android/app/build.gradle` aplica el plugin `com.google.gms.google-services` solo si el archivo existe.
-4. `npx cap sync android` y vuelve a compilar.
-
-El canal de Android es `pedidos` (importancia alta) y es el canal por defecto de FCM (`AndroidManifest.xml`). El permiso `POST_NOTIFICATIONS` (Android 13+) se pide después del primer pedido, con una explicación antes. El servidor debe mandar el `orderId` en `data`: al tocar la notificación se abre ese pedido.
+- Llegan con la app abierta o en segundo plano. **No llegan si la app se cerró por completo** (para eso haría falta push con Firebase).
+- El canal de Android es `pedidos` (importancia alta).
+- El permiso `POST_NOTIFICATIONS` (Android 13+) se pide después del primer pedido, con una explicación antes. También se puede activar en **Perfil**.
 
 ## Rutas
 
 | Ruta | Pantalla |
 |------|----------|
 | `/` | Redirige al inicio del rol |
-| `/inicio` | Sin sesión: «Soy cliente» o «Soy de la tienda» |
-| `/cliente/entrar`, `/cliente/registro` | Iniciar sesión y crear cuenta de cliente |
+| `/entrar` | Iniciar sesión (todos) y dirección del servidor |
+| `/registro` | Crear cuenta |
 | `/cliente/tienda` | Catálogo con búsqueda y categorías |
-| `/cliente/producto/:id` | Detalle y cantidad |
+| `/cliente/producto/:id` | Detalle, descripción, disponibilidad y cantidad |
 | `/cliente/carrito` | Carrito y nota para la tienda |
 | `/cliente/confirmar` | Resumen y envío del pedido |
 | `/cliente/pedido-creado/:id` | Folio y estado |
 | `/cliente/pedidos` | Mis pedidos (Activos / Historial) |
-| `/cliente/pedido/:id` | Detalle con línea de tiempo |
-| `/cliente/perfil` | Datos, avisos, cerrar sesión (y el panel de simulación) |
-| `/movil/bienvenida` | Bienvenida |
+| `/cliente/pedido/:id` | Detalle con línea de tiempo; si la tienda lo canceló, el aviso con «Elegir otro producto» o «Quitar pedido» |
+| `/cliente/pedido/:id/cambiar` | Pedido cancelado por falta de existencia: productos parecidos y los demás del pedido para armar uno nuevo |
+| `/cliente/perfil` | Datos, notificaciones, tema y cerrar sesión |
+| `/movil/inicio` | Personal: va a vincular el celular o directo al escáner |
 | `/movil/vincular` | Vincular el celular con la caja (QR, o dirección + código de 6 dígitos) |
 | `/movil/escaner` | Cámara y búsqueda por código de barras |
 | `/movil/enviados` | Actividad: lo enviado a la caja y lo guardado sin conexión |
-| `/movil/ajustes` | Celular vinculado, cambios pendientes, tema |
+| `/movil/ajustes` | Cuenta y cerrar sesión, celular vinculado, cambios pendientes, tema |
 | `/movil/producto-nuevo` | Alta de producto |
 | `/movil/producto/:id` | Editar producto |
 
@@ -152,12 +156,12 @@ El canal de Android es `pedidos` (importancia alta) y es el canal por defecto de
 android/                  proyecto nativo de Android (Capacitor)
 capacitor.config.ts       appId com.tendero.app, modo desarrollo/producción
 src/
-├─ App.tsx                sesión y guardián: elige el árbol de pantallas por rol (carga perezosa)
-├─ api/                   llamadas al servidor (index.ts), transporte HTTP y servidor simulado (sim/)
+├─ App.tsx                animación de inicio, sesión y guardián: elige el árbol de pantallas por rol (carga perezosa)
+├─ api/                   llamadas a la API (index.ts) y transporte HTTP
 ├─ session/               sesión y token seguro, reglas de rutas por rol, historial con guardián
-├─ inicio/                elegir rol, iniciar sesión, crear cuenta
-├─ client/                Pide y recoge: catálogo, carrito, pedidos, avisos push, perfil
-├─ admin/                 la parte de la tienda, sin cambios de comportamiento
+├─ inicio/                animación de inicio, iniciar sesión, crear cuenta, dirección del servidor
+├─ client/                Pide y recoge: catálogo, carrito, pedidos, notificaciones, perfil
+├─ admin/                 la parte del personal de la tienda
 │  ├─ AdminApp.tsx        rutas /movil/* y sesión de dispositivo
 │  ├─ context/            estado, sincronización y cola sin conexión
 │  ├─ lib/ hooks/         sincronización, escáner, cola en Preferences, búsqueda, fotos, cámara web
@@ -165,6 +169,6 @@ src/
 │  └─ pages/              pantallas del celular de la tienda
 ├─ components/            piezas compartidas: encabezado, formularios, estados vacíos, marca
 ├─ data/                  modelos y datos iniciales
-├─ lib/                   tema y estado de la conexión
+├─ lib/                   dirección del servidor, tema y estado de la conexión
 └─ theme/                 colores y estilos globales
 ```

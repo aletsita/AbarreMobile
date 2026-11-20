@@ -1,7 +1,7 @@
 import { IonButton, IonContent, IonIcon, IonLabel, IonPage, IonRefresher, IonRefresherContent, IonSegment, IonSegmentButton, IonSpinner, useIonRouter } from '@ionic/react';
 import { chevronForward } from 'ionicons/icons';
 import { useState } from 'react';
-import { isActive } from '../../api/types';
+import { isActive, needsAction } from '../../api/types';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
@@ -36,20 +36,25 @@ export default function Pedidos() {
           action={<IonButton routerLink="/cliente/tienda" routerDirection="root">Ir a la tienda</IonButton>}
         />
       ) : (
-        <EmptyState art="box" title="Aún no hay pedidos entregados" text="Aquí quedan los pedidos que ya recogiste." />
+        <EmptyState art="box" title="Aún no hay pedidos en tu historial" text="Aquí quedan los pedidos que ya recogiste o que se cancelaron." />
       );
   } else {
     body = (
       <ul className="cl-orders">
         {list.map((o) => (
           <li key={o.id}>
-            <button type="button" className="card cl-order" onClick={() => router.push(`/cliente/pedido/${o.id}`)}>
+            <button type="button" className={`card cl-order ${needsAction(o) ? 'is-alert' : ''}`} onClick={() => router.push(`/cliente/pedido/${o.id}`)}>
               <span className="cl-order-main">
-                <strong>Pedido #{o.folio}</strong>
+                <strong>Pedido {o.folio}</strong>
                 <span className="muted">
                   {dateTime(o.createdAt)} · {o.items.reduce((n, i) => n + i.qty, 0)} piezas
                 </span>
                 <StatusChip status={o.status} />
+                {needsAction(o) && (
+                  <span className="cl-order-alert">
+                    {o.cancel?.reason === 'sin-existencia' ? 'Se agotó un producto · elige qué hacer' : 'La tienda lo canceló · toca para ver'}
+                  </span>
+                )}
               </span>
               <span className="money">{money(o.total)}</span>
               <IonIcon icon={chevronForward} className="muted" />

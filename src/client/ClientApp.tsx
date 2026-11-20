@@ -1,14 +1,14 @@
 import { IonBadge, IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs, useIonRouter } from '@ionic/react';
 import { cartOutline, personCircleOutline, receiptOutline, storefrontOutline } from 'ionicons/icons';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Redirect, Route } from 'react-router-dom';
-import { api } from '../api';
+import { isActive } from '../api/types';
 import { useSession } from '../session/SessionContext';
-import { stopSimAuto } from './components/SimPanel';
 import { CartProvider, useCart } from './lib/cart';
 import { CatalogProvider } from './lib/catalog';
+import { startNotify, stopNotify } from './lib/notify';
 import { OrdersProvider, useOrders } from './lib/orders';
-import { startPush, stopPush } from './lib/push';
+import CambiarPedido from './pages/CambiarPedido';
 import Carrito from './pages/Carrito';
 import Confirmar from './pages/Confirmar';
 import PedidoCreado from './pages/PedidoCreado';
@@ -22,7 +22,7 @@ import './client.css';
 function ClientTabs() {
   const { count } = useCart();
   const { orders } = useOrders();
-  const active = orders.filter((o) => o.status !== 'entregado').length;
+  const active = orders.filter(isActive).length;
 
   return (
     <IonTabs>
@@ -57,30 +57,16 @@ function ClientTabs() {
   );
 }
 
-// Notificaciones: token al servidor al entrar, aviso en la app en primer plano,
-// y al tocar la notificación del sistema se abre el detalle de ese pedido
-function PushBridge() {
+// Notificaciones del sistema: al tocar una se abre el detalle de ese pedido; al salir se limpian
+function NotifyBridge() {
   const { onBeforeLogout } = useSession();
-  const { incoming } = useOrders();
   const router = useIonRouter();
-  const incomingRef = useRef(incoming);
-  incomingRef.current = incoming;
 
   useEffect(() => {
-    void startPush({
-      onReceived: (orderId) => {
-        api.order(orderId).then((o) => incomingRef.current(o), () => undefined);
-      },
-      onOpen: (orderId) => router.push(`/cliente/pedido/${orderId}`),
-    }).catch((e) => console.warn('[push] No se pudieron activar las notificaciones', e));
-    const off = onBeforeLogout(async () => {
-      stopSimAuto();
-      await stopPush();
-    });
-    return () => {
-      off();
-      stopSimAuto();
-    };
+    void startNotify((orderId) => router.push(`/cliente/pedido/${orderId}`)).catch((e) =>
+      console.warn('[avisos] No se pudieron activar las notificaciones', e),
+    );
+    return onBeforeLogout(() => stopNotify());
   }, []);
 
   return null;
@@ -93,13 +79,14 @@ export default function ClientApp() {
     <CatalogProvider>
       <CartProvider userId={session!.userId}>
         <OrdersProvider>
-          <PushBridge />
+          <NotifyBridge />
           <IonRouterOutlet>
             <Route path="/cliente/:tab(tienda|carrito|pedidos|perfil)" render={() => <ClientTabs />} />
             <Route exact path="/cliente/producto/:id" component={Producto} />
             <Route exact path="/cliente/confirmar" component={Confirmar} />
             <Route exact path="/cliente/pedido-creado/:id" component={PedidoCreado} />
             <Route exact path="/cliente/pedido/:id" component={PedidoDetalle} />
+            <Route exact path="/cliente/pedido/:id/cambiar" component={CambiarPedido} />
             <Route>
               <Redirect to="/cliente/tienda" />
             </Route>

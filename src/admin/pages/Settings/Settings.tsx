@@ -3,7 +3,9 @@ import {
   checkmarkCircleOutline,
   contrastOutline,
   linkOutline,
+  logOutOutline,
   moonOutline,
+  personCircleOutline,
   phonePortraitOutline,
   serverOutline,
   sunnyOutline,
@@ -18,6 +20,7 @@ import { useApp } from '../../context/AppContext';
 import { shortServer } from '../../lib/link';
 import { STATUS_LABEL } from '../Link/Link';
 import { THEME_LABEL, useThemeMode, type ThemeMode } from '../../../lib/theme';
+import { useSession } from '../../../session/SessionContext';
 import './Settings.css';
 
 // Dentro de la app nativa ya está instalada; en el navegador solo queda la indicación manual
@@ -28,6 +31,17 @@ export default function Settings() {
   const router = useIonRouter();
   const [alert] = useIonAlert();
   const [theme, setTheme] = useThemeMode();
+  const { session, logout } = useSession();
+
+  const confirmLogout = () =>
+    alert({
+      header: '¿Cerrar sesión?',
+      message: 'El celular sigue vinculado con la caja. Para volver a usarlo, inicia sesión otra vez.',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Cerrar sesión', role: 'destructive', handler: () => void logout() },
+      ],
+    });
 
   const confirmUnlink = () =>
     alert({
@@ -53,6 +67,19 @@ export default function Settings() {
       <AppHeader title="Ajustes" />
       <IonContent>
         <div className="page-pad is-narrow">
+          <h2 className="section-title">Tu cuenta</h2>
+          <section className="card set-device">
+            <span className="set-avatar"><IonIcon icon={personCircleOutline} /></span>
+            <div className="set-device-info">
+              <strong>{session?.name}</strong>
+              <span className="muted">{session?.staffRole ?? 'Personal'} de {store.name}</span>
+            </div>
+          </section>
+          <IonButton expand="block" fill="outline" className="btn-lg set-btn" onClick={confirmLogout}>
+            <IonIcon slot="start" icon={logOutOutline} />
+            Cerrar sesión
+          </IonButton>
+
           <h2 className="section-title">Este celular</h2>
           <section className="card set-device">
             <span className={`set-avatar ${thisDevice ? '' : 'is-off'}`}><IonIcon icon={phonePortraitOutline} /></span>

@@ -2,8 +2,7 @@
   display: flex;
   gap: 12px;
   padding: 12px 14px;
-  border-left: 4px solid var(--ion-color-warning);
-  border-radius: var(--t-radius-sm);
+  border-radius: var(--t-radius);
   background: var(--t-warning-bg);
   color: var(--t-warning-text);
 }
@@ -20,15 +19,17 @@
 .np-price { font-size: 1.2rem; font-weight: 800; }
 .np-currency { font-weight: 700; color: var(--t-muted); margin-right: 4px; }
 .np-label { margin: 0 0 6px; }
+.np-group { display: flex; flex-direction: column; gap: 14px; }
+.np-group-title { margin: 0; font-size: 0.98rem; font-weight: 800; letter-spacing: -0.01em; }
 .np-stepper {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 54px;
   max-width: 220px;
-  border: 1px solid var(--t-border-strong);
-  border-radius: var(--t-radius-sm);
-  background: var(--t-surface);
+  border: 0;
+  border-radius: 999px;
+  background: var(--t-surface-3);
 }
 .np-stepper button {
   width: 52px;
@@ -45,9 +46,9 @@
 .np-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .np-chips button {
   height: 40px;
-  padding: 0 14px;
+  padding: 0 16px;
   border: 1.5px solid var(--t-border-strong);
-  border-radius: 6px;
+  border-radius: 999px;
   background: var(--t-surface);
   font: inherit;
   font-weight: 600;

@@ -1,14 +1,15 @@
-// Tipos que viajan entre la app y el servidor.
-// Hoy los responde el servidor simulado (src/api/sim). Son una PROPUESTA (ver API_SIMULADA.md):
-// cuando exista API_CONTRACT.md se ajustan aquí y en src/api/index.ts, sin tocar las pantallas.
+// Tipos que viajan entre la app y el servidor (tendero-web/server/api.js). Ver API.md.
 
-export type Role = 'cliente' | 'dispositivo';
+// cliente: Pide y recoge · personal: usuario activo de la caja (Dueño, Cajero o Inventario)
+export type Role = 'cliente' | 'personal';
+export type StaffRole = 'Dueño' | 'Cajero' | 'Inventario';
 
 // Lo que trae el token (JWT: header.payload.firma, payload en base64url)
 export interface TokenClaims {
   sub: string; // id del usuario o del dispositivo
   role: Role;
   name: string;
+  staffRole?: StaffRole; // solo personal
   exp: number; // segundos desde 1970
 }
 
@@ -30,11 +31,20 @@ export interface CatalogProduct {
   name: string;
   category: string;
   price: number;
-  stock: number;
+  stock: number; // disponible para pedir (existencia menos lo apartado). No se muestra tal cual al cliente.
+  description?: string;
   photo?: string;
 }
 
-export type OrderStatus = 'pendiente' | 'preparando' | 'listo' | 'entregado';
+export type OrderStatus = 'pendiente' | 'preparando' | 'listo' | 'entregado' | 'cancelado';
+
+// La caja canceló el pedido. `missing`: ids de los productos que se agotaron.
+export interface OrderCancel {
+  reason: 'sin-existencia' | 'otro';
+  missing: string[];
+  note?: string;
+  at: string;
+}
 
 export interface OrderItem {
   productId: string;
@@ -45,7 +55,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
-  folio: number;
+  folio: string; // el de la caja, "P-0006"
   status: OrderStatus;
   items: OrderItem[];
   total: number;
@@ -54,6 +64,9 @@ export interface Order {
   history: { status: OrderStatus; at: string }[];
   // Código para recoger (6 dígitos). Solo lo ve el dueño del pedido; la caja lo pide al entregar.
   pickupCode?: string;
+  cancel?: OrderCancel;
+  // Lo que hizo el cliente con un pedido cancelado
+  resolved?: { action: 'quitar' | 'reemplazar'; at: string };
 }
 
 export interface NewOrder {
@@ -83,6 +96,9 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   preparando: 'Preparando',
   listo: 'Listo para recoger',
   entregado: 'Entregado',
+  cancelado: 'Cancelado',
 };
 
-export const isActive = (o: Order) => o.status !== 'entregado';
+// Cancelado y el cliente todavía no decide qué hacer: se queda en «Activos» para que lo vea
+export const needsAction = (o: Order) => o.status === 'cancelado' && !o.resolved;
+export const isActive = (o: Order) => (o.status !== 'entregado' && o.status !== 'cancelado') || needsAction(o);
