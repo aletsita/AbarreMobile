@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
-import { Price, ProductImage, QtyStepper } from '../components/ui';
+import { Availability, Price, ProductImage, QtyStepper } from '../components/ui';
 import { useCart } from '../lib/cart';
 import { useCatalog } from '../lib/catalog';
 
@@ -48,13 +48,17 @@ export default function Producto() {
         <span className="cl-detail-cat">{p.category}</span>
         <h1>{p.name}</h1>
         <Price value={p.price} className="cl-detail-price" />
-        {p.stock < 1 ? (
-          <p className="cl-out">Agotado</p>
-        ) : (
-          <p className="muted">
-            {left > 0 ? `Hay ${left} disponible${left === 1 ? '' : 's'}` : 'Ya tienes en tu carrito todas las piezas disponibles'}
-            {inCart > 0 && ` · ${inCart} en tu carrito`}
-          </p>
+        <div className="cl-detail-stock">
+          <Availability stock={p.stock} />
+          {inCart > 0 && <span className="muted">{inCart} en tu carrito</span>}
+        </div>
+        {p.stock > 0 && left < 1 && <p className="muted">Ya tienes en tu carrito todas las piezas que puedes pedir.</p>}
+
+        {p.description && (
+          <section className="cl-detail-desc">
+            <h2>Descripción</h2>
+            <p>{p.description}</p>
+          </section>
         )}
         <p className="cl-detail-pickup">
           <IonIcon icon={storefrontOutline} aria-hidden="true" />
