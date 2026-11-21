@@ -3,10 +3,12 @@ import {
   addOutline,
   archiveOutline,
   basketOutline,
+  cloudOfflineOutline,
   cubeOutline,
   fastFoodOutline,
   iceCreamOutline,
   leafOutline,
+  moonOutline,
   nutritionOutline,
   removeOutline,
   trashOutline,
@@ -17,6 +19,7 @@ import {
 import { categoryColor, money } from '../../data/models';
 import { STATUS_LABEL, type CatalogProduct, type OrderStatus } from '../../api/types';
 import { useCart } from '../lib/cart';
+import { useCatalog } from '../lib/catalog';
 
 const CATEGORY_ICON: Record<string, string> = {
   Abarrotes: basketOutline,
@@ -77,6 +80,7 @@ export function Availability({ stock }: { stock: number }) {
 // Tarjeta compacta del catálogo: "+" para agregar y, ya en el carrito, selector de cantidad
 export function ProductCard({ product: p }: { product: CatalogProduct }) {
   const cart = useCart();
+  const { closed } = useCatalog();
   const router = useIonRouter();
   const [toast] = useIonToast();
   const soldOut = p.stock < 1;
@@ -108,11 +112,11 @@ export function ProductCard({ product: p }: { product: CatalogProduct }) {
               <IonIcon icon={inCart <= 1 ? trashOutline : removeOutline} />
             </button>
             <output aria-live="polite">{inCart}</output>
-            <button type="button" onClick={() => cart.add(p)} disabled={inCart >= p.stock} aria-label="Agregar uno">
+            <button type="button" onClick={() => cart.add(p)} disabled={closed || inCart >= p.stock} aria-label="Agregar uno">
               <IonIcon icon={addOutline} />
             </button>
           </div>
-        ) : (
+        ) : closed ? null : (
           <button type="button" className="pc-add" onClick={add} aria-label={`Agregar ${p.name}`}>
             <IonIcon icon={addOutline} />
           </button>
@@ -124,6 +128,25 @@ export function ProductCard({ product: p }: { product: CatalogProduct }) {
         {!soldOut && p.stock <= LOW_STOCK && <span className="pc-left">Pocas piezas</span>}
       </button>
     </article>
+  );
+}
+
+// La tienda no recibe pedidos: la caja no está conectada o ya cerró su turno
+export function StoreClosed({ compact }: { compact?: boolean }) {
+  const { store } = useCatalog();
+  if (!store || store.abierta) return null;
+  const shift = store.motivo === 'turno-cerrado';
+  return (
+    <section className={`cl-closed ${compact ? 'is-compact' : ''}`} role="status">
+      <IonIcon icon={shift ? moonOutline : cloudOfflineOutline} aria-hidden="true" />
+      <span>
+        <strong>{shift ? 'La tienda está cerrada' : 'La tienda no está disponible'}</strong>
+        <small>
+          {shift ? 'Ya cerró su turno.' : 'Por ahora no tiene conexión.'} Puedes ver los productos, pero no hacer pedidos hasta que{' '}
+          {shift ? 'vuelva a abrir' : 'se conecte de nuevo'}.
+        </small>
+      </span>
+    </section>
   );
 }
 
