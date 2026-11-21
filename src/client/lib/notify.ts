@@ -2,7 +2,7 @@ import { App } from '@capacitor/app';
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Preferences } from '@capacitor/preferences';
-import { STATUS_LABEL, type Order, type OrderStatus } from '../../api/types';
+import { hasIssue, STATUS_LABEL, type Order, type OrderStatus } from '../../api/types';
 
 // Notificaciones del sistema (barra de notificaciones, con sonido) cuando cambia el estado de un pedido.
 // Son locales: la app las muestra al recibir el cambio por la conexión en vivo con el servidor, así que
@@ -105,8 +105,8 @@ export async function notifyOrder(o: Order) {
     notifications: [
       {
         id: notificationId(o.id),
-        title: `Pedido ${o.folio}: ${STATUS_LABEL[o.status]}`,
-        body: o.cancel?.reason === 'sin-existencia' ? 'Se agotó un producto. Toca para quitar el pedido o elegir otro producto.' : BODY[o.status],
+        title: hasIssue(o) ? `Pedido ${o.folio}: se agotó un producto` : `Pedido ${o.folio}: ${STATUS_LABEL[o.status]}`,
+        body: hasIssue(o) ? 'Toca para elegir otro producto o quitarlo de tu pedido.' : BODY[o.status],
         channelId: CHANNEL_ID,
         extra: { orderId: o.id },
       },

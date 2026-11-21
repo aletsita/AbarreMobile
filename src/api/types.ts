@@ -38,9 +38,9 @@ export interface CatalogProduct {
 
 export type OrderStatus = 'pendiente' | 'preparando' | 'listo' | 'entregado' | 'cancelado';
 
-// La caja canceló el pedido. `missing`: ids de los productos que se agotaron.
+// Pedido cancelado. `missing`: ids de los productos que se agotaron. cliente: lo canceló el cliente.
 export interface OrderCancel {
-  reason: 'sin-existencia' | 'otro';
+  reason: 'sin-existencia' | 'otro' | 'cliente';
   missing: string[];
   note?: string;
   at: string;
@@ -65,8 +65,20 @@ export interface Order {
   // Código para recoger (6 dígitos). Solo lo ve el dueño del pedido; la caja lo pide al entregar.
   pickupCode?: string;
   cancel?: OrderCancel;
+  // La tienda avisó que se agotaron estos productos: el pedido sigue en pie y espera a que el cliente
+  // los cambie por otros, los quite o cancele el pedido
+  issue?: { missing: string[]; at: string };
+  editedAt?: string;
   // Lo que hizo el cliente con un pedido cancelado
   resolved?: { action: 'quitar' | 'reemplazar'; at: string };
+}
+
+// Si la tienda recibe pedidos: abre mientras la caja está conectada y con su turno abierto
+export interface StoreStatus {
+  abierta: boolean;
+  motivo?: 'sin-conexion' | 'turno-cerrado';
+  mensaje?: string;
+  nombre?: string;
 }
 
 export interface NewOrder {
@@ -99,6 +111,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   cancelado: 'Cancelado',
 };
 
-// Cancelado y el cliente todavía no decide qué hacer: se queda en «Activos» para que lo vea
-export const needsAction = (o: Order) => o.status === 'cancelado' && !o.resolved;
+// El cliente tiene que decidir algo: se agotó un producto de su pedido, o la tienda lo canceló y aún no lo ve
+export const hasIssue = (o: Order) => !!o.issue && o.status !== 'entregado' && o.status !== 'cancelado';
+export const needsAction = (o: Order) => hasIssue(o) || (o.status === 'cancelado' && !o.resolved && o.cancel?.reason !== 'cliente');
 export const isActive = (o: Order) => (o.status !== 'entregado' && o.status !== 'cancelado') || needsAction(o);

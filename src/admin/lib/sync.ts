@@ -1,5 +1,5 @@
 import { uid } from '../../data/models';
-import { normalizeServer } from './link';
+import { normalizeServer } from '../../lib/link';
 
 interface Envelope {
   id: string;

@@ -127,3 +127,7 @@
 .scanner-simulate ion-icon { font-size: 20px; }
 .scanner-simulate:disabled { opacity: 0.5; }
 .scan-layout.is-typing .scanner-simulate { display: none; }
+
+.scan-account { display: flex; align-items: center; gap: 8px; min-height: 26px; margin: -4px 0 8px; padding: 0 2px; font-size: 0.84rem; color: var(--t-ink); }
+.scan-account ion-icon { flex: none; font-size: 16px; color: var(--ion-color-primary); }
+.scan-account strong { font-weight: 700; }
