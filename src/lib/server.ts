@@ -1,4 +1,4 @@
-import { normalizeServer, shortServer } from '../admin/lib/link';
+import { normalizeServer, shortServer } from './link';
 
 // Dirección del servidor de la tienda (tendero-web: npm run dev:server). La usan la API (/api) y la
 // sincronización con la caja (/__sync). Se guarda en el teléfono: la escribe quien inicia sesión o llega

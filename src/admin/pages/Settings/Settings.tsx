@@ -17,7 +17,7 @@ import { BrandLogo } from '../../../components/Brand';
 import { SyncPendingChip } from '../../components/SyncPendingChip';
 import { APP_NAME, APP_VERSION } from '../../../config';
 import { useApp } from '../../context/AppContext';
-import { shortServer } from '../../lib/link';
+import { shortServer } from '../../../lib/link';
 import { STATUS_LABEL } from '../Link/Link';
 import { THEME_LABEL, useThemeMode, type ThemeMode } from '../../../lib/theme';
 import { useSession } from '../../../session/SessionContext';

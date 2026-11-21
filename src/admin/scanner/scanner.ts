@@ -1,7 +1,7 @@
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { PRODUCT_FORMATS, useBarcodeCamera, type CameraStatus } from '../hooks/useBarcodeCamera';
+import { PRODUCT_FORMATS, useBarcodeCamera, type CameraStatus } from './useBarcodeCamera';
 
 // Lector de códigos con una sola interfaz:
 // en la app nativa usa ML Kit (cámara a pantalla completa detrás del WebView),
