@@ -38,13 +38,15 @@ export function httpTransport(base: string): Transport {
       const es = new EventSource(`${base}${path}?token=${encodeURIComponent(token)}`);
       es.onopen = () => onStatus(true);
       es.onerror = () => onStatus(false);
-      es.addEventListener('pedido', (e) => {
-        try {
-          onEvent('pedido', JSON.parse((e as MessageEvent<string>).data));
-        } catch {
-          /* evento inválido */
-        }
-      });
+      for (const type of ['pedido', 'tienda']) {
+        es.addEventListener(type, (e) => {
+          try {
+            onEvent(type, JSON.parse((e as MessageEvent<string>).data));
+          } catch {
+            /* evento inválido */
+          }
+        });
+      }
       return () => es.close();
     },
   };
