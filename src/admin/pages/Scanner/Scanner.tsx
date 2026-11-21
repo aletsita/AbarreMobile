@@ -23,6 +23,8 @@ import {
   checkmarkDone,
   chevronForward,
   linkOutline,
+  personOutline,
+  receiptOutline,
   remove,
   scanOutline,
   searchOutline,
@@ -33,7 +35,7 @@ import { AppHeader } from '../../../components/AppHeader';
 import { BarcodeSearch } from '../../components/BarcodeSearch';
 import { EmptyState } from '../../../components/EmptyState';
 import { ProductThumb } from '../../../components/ProductThumb';
-import { ScannerView } from '../../components/ScannerView';
+import { ScannerView } from '../../scanner/ScannerView';
 import { StockBadge } from '../../components/StockBadge';
 import { SyncBadge } from '../../components/SyncBadge';
 import { useApp, type ProductView, type SentView } from '../../context/AppContext';
@@ -66,7 +68,7 @@ export function SentPill({ status }: { status: SentView['status'] }) {
 }
 
 export default function Scanner() {
-  const { products, sent, thisDevice, store, addStock, findByBarcode, isLive, online } = useApp();
+  const { products, sent, thisDevice, store, account, customers, addStock, findByBarcode, isLive, online } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
   const [alert] = useIonAlert();
@@ -144,6 +146,8 @@ export default function Scanner() {
   const recent = mine.slice(0, 4);
   const batchPieces = batch.reduce((n, l) => n + l.qty, 0);
   const registerLive = isLive('panel');
+  // A dónde van los envíos: la cuenta abierta en la caja y, si tiene, su cliente
+  const customer = account.customerId ? customers.find((c) => c.id === account.customerId) : undefined;
 
   return (
     <IonPage>
@@ -163,6 +167,21 @@ export default function Scanner() {
                 <span>Conectado a <strong>{store.register}</strong></span>
               ) : (
                 <span><strong>{store.register}</strong> cerrada · los envíos aparecerán al abrirla</span>
+              )}
+            </div>
+          )}
+          {thisDevice && (
+            <div className="scan-account">
+              <IonIcon icon={customer ? personOutline : receiptOutline} aria-hidden="true" />
+              {customer ? (
+                <span>
+                  Cliente <strong>{customer.name}</strong>
+                  {account.name !== customer.name && <> · {account.name}</>}
+                </span>
+              ) : (
+                <span>
+                  Cuenta abierta: <strong>{account.name}</strong>
+                </span>
               )}
             </div>
           )}
