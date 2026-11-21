@@ -1,10 +1,10 @@
 import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonToolbar, useIonRouter, useIonToast } from '@ionic/react';
 import { add, arrowDown, arrowUp, barcodeOutline, constructOutline, remove, saveOutline, sparklesOutline } from 'ionicons/icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { AppHeader } from '../../../components/AppHeader';
 import { EmptyState } from '../../../components/EmptyState';
-import { MoneyField, TextField } from '../../../components/Form';
+import { AreaField, MoneyField, SwitchField, TextField } from '../../../components/Form';
 import { PhotoPicker } from '../../components/PhotoPicker';
 import { StockBadge } from '../../components/StockBadge';
 import { SyncBadge } from '../../components/SyncBadge';
@@ -23,13 +23,17 @@ export default function ProductEdit() {
   const view = products.find((p) => p.id === id);
   const [draft, setDraft] = useState<Product>();
   // Texto de los campos numéricos, para poder escribir "12." sin que se borre el punto
-  const [nums, setNums] = useState({ price: '', cost: '', minStock: '' });
+  const [nums, setNums] = useState({ price: '', cost: '', minStock: '', stock: '' });
+  // Cuando ya se empezó a editar, lo que llegue de la caja (cada vez que manda sus datos) no borra el formulario
+  const touched = useRef(false);
 
   useEffect(() => {
     if (!view) return setDraft(undefined);
+    if (touched.current && draft?.id === view.id) return;
+    touched.current = false;
     const { sync: _sync, ...product } = view;
     setDraft(product);
-    setNums({ price: String(product.price), cost: String(product.cost), minStock: String(product.minStock) });
+    setNums({ price: String(product.price), cost: String(product.cost), minStock: String(product.minStock), stock: String(product.stock) });
   }, [view]);
 
   if (!view || !draft) {
@@ -48,16 +52,24 @@ export default function ProductEdit() {
     );
   }
 
-  const set = <K extends keyof Product>(k: K, v: Product[K]) => setDraft({ ...draft, [k]: v });
+  const set = <K extends keyof Product>(k: K, v: Product[K]) => {
+    touched.current = true;
+    setDraft({ ...draft, [k]: v });
+  };
   const setNum = (k: keyof typeof nums, v: string) => {
     setNums({ ...nums, [k]: v });
     set(k, Number(v) || 0);
+  };
+  const setStock = (n: number) => {
+    setNums({ ...nums, stock: String(n) });
+    set('stock', n);
   };
   const { sync: _s, ...original } = view;
   const changed = JSON.stringify(draft) !== JSON.stringify(original);
 
   const save = () => {
-    const r = saveProduct({ ...draft, name: draft.name.trim() }, false);
+    const r = saveProduct({ ...draft, name: draft.name.trim(), description: draft.description?.trim() || undefined }, false);
+    touched.current = false;
     toast({
       message: r === 'pendiente' ? 'Cambios guardados en el celular. Se subirán al volver la conexión.' : 'Cambios guardados',
       duration: r === 'pendiente' ? 3000 : 1500,
@@ -96,19 +108,38 @@ export default function ProductEdit() {
           </div>
 
           <section className="card pd-stock">
-            <div>
-              <span className="pd-stock-label">Existencia</span>
-              <strong className="money">{draft.stock} pzas</strong>
-            </div>
+            <TextField
+              label="Existencia"
+              suffix="pzas"
+              inputMode="numeric"
+              value={nums.stock}
+              hint={draft.stock !== original.stock ? `Antes: ${original.stock} pzas` : undefined}
+              onChange={(v) => setNum('stock', v.replace(/\D/g, ''))}
+            />
             <div className="pd-stepper">
-              <button type="button" onClick={() => set('stock', Math.max(0, draft.stock - 1))} aria-label="Uno menos">
+              <button type="button" onClick={() => setStock(Math.max(0, draft.stock - 1))} aria-label="Uno menos">
                 <IonIcon icon={remove} />
               </button>
-              <button type="button" onClick={() => set('stock', draft.stock + 1)} aria-label="Uno más">
+              <button type="button" onClick={() => setStock(draft.stock + 1)} aria-label="Uno más">
                 <IonIcon icon={add} />
               </button>
             </div>
           </section>
+
+          <AreaField
+            label="Descripción para los clientes"
+            optional
+            placeholder="Ej. Paquete de 12 huevos blancos."
+            maxLength={300}
+            value={draft.description ?? ''}
+            onChange={(v) => set('description', v)}
+          />
+          <SwitchField
+            label="Mostrar en la app de clientes"
+            hint="Si lo apagas, los clientes no lo ven en Pide y recoge."
+            checked={draft.showInApp !== false}
+            onChange={(v) => set('showInApp', v)}
+          />
 
           <h2 className="section-title">Movimientos</h2>
           <ul className="card pd-moves">

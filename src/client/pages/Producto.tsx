@@ -5,13 +5,13 @@ import { useParams } from 'react-router-dom';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
-import { Availability, Price, ProductImage, QtyStepper } from '../components/ui';
+import { Availability, Price, ProductImage, QtyStepper, StoreClosed } from '../components/ui';
 import { useCart } from '../lib/cart';
 import { useCatalog } from '../lib/catalog';
 
 export default function Producto() {
   const { id } = useParams<{ id: string }>();
-  const { byId, loading, error, refresh } = useCatalog();
+  const { byId, loading, error, refresh, closed } = useCatalog();
   const cart = useCart();
   const router = useIonRouter();
   const [toast] = useIonToast();
@@ -44,6 +44,7 @@ export default function Producto() {
   } else {
     body = (
       <div className="cl-detail">
+        <StoreClosed compact />
         <ProductImage product={p} />
         <span className="cl-detail-cat">{p.category}</span>
         <h1>{p.name}</h1>
@@ -68,7 +69,7 @@ export default function Producto() {
     );
   }
 
-  const canAdd = !!p && p.stock > 0 && left > 0;
+  const canAdd = !!p && p.stock > 0 && left > 0 && !closed;
 
   return (
     <IonPage>

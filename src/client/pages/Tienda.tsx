@@ -20,7 +20,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { money, normalize } from '../../data/models';
 import { STORE } from '../../data/seed';
 import type { CatalogProduct } from '../../api/types';
-import { categoryIcon, categoryTint, ProductCard } from '../components/ui';
+import { categoryIcon, categoryTint, ProductCard, StoreClosed } from '../components/ui';
 import { useCart } from '../lib/cart';
 import { useCatalog } from '../lib/catalog';
 
@@ -43,7 +43,7 @@ function SearchBox({ value, onChange, placeholder, compact }: { value: string; o
 }
 
 export default function Tienda() {
-  const { products, loading, error, refresh } = useCatalog();
+  const { products, loading, error, refresh, store } = useCatalog();
   const cart = useCart();
   const router = useIonRouter();
   const [menu] = useIonActionSheet();
@@ -256,7 +256,10 @@ export default function Tienda() {
               </button>
             </span>
           </div>
-          <h1 className="tn-store">{STORE.name}</h1>
+          <h1 className="tn-store">
+            {store?.nombre ?? STORE.name}
+            {store && <span className={`tn-open ${store.abierta ? 'is-open' : 'is-closed'}`}>{store.abierta ? 'Abierta' : 'Cerrada'}</span>}
+          </h1>
           <p className="tn-pickup">
             <IonIcon icon={storefrontOutline} aria-hidden="true" />
             <span>
@@ -266,6 +269,9 @@ export default function Tienda() {
           <SearchBox value={text} onChange={setText} placeholder={placeholder} />
         </header>
         <OfflineBar message="los precios pueden no estar al día. Para pedir necesitas conexión" />
+        <div className="tn-closed">
+          <StoreClosed />
+        </div>
 
         <div className={`tn-body ${cart.count > 0 ? 'has-cart' : ''}`}>{body}</div>
       </IonContent>

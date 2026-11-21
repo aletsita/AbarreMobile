@@ -1,7 +1,7 @@
 import { IonButton, IonContent, IonIcon, IonLabel, IonPage, IonRefresher, IonRefresherContent, IonSegment, IonSegmentButton, IonSpinner, useIonRouter } from '@ionic/react';
 import { chevronForward } from 'ionicons/icons';
 import { useState } from 'react';
-import { isActive, needsAction } from '../../api/types';
+import { hasIssue, isActive, needsAction } from '../../api/types';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
@@ -52,7 +52,7 @@ export default function Pedidos() {
                 <StatusChip status={o.status} />
                 {needsAction(o) && (
                   <span className="cl-order-alert">
-                    {o.cancel?.reason === 'sin-existencia' ? 'Se agotó un producto · elige qué hacer' : 'La tienda lo canceló · toca para ver'}
+                    {hasIssue(o) ? 'Se agotó un producto · elige qué hacer' : 'La tienda lo canceló · toca para ver'}
                   </span>
                 )}
               </span>

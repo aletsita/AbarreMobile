@@ -13,6 +13,8 @@ export interface Product {
   minStock: number;
   barcode: string;
   photo?: string;
+  // Pide y recoge: si aparece en el catálogo de la app de clientes (sin valor = sí)
+  showInApp?: boolean;
   // Texto que ven los clientes en el detalle del producto
   description?: string;
 }
@@ -36,6 +38,10 @@ export interface Sale {
   pending?: boolean;
   customerId?: string;
   customerName?: string;
+  // Pide y recoge: la venta viene de un pedido entregado (sin origen = venta en tienda)
+  origin?: 'tienda' | 'pedido';
+  orderId?: string;
+  orderFolio?: string;
 }
 
 export interface Customer {

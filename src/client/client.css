@@ -404,3 +404,23 @@
 .cl-code p { margin: 0; font-size: 0.84rem; max-width: 30ch; }
 .cl-code-wait { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: var(--t-radius); border: 1px dashed var(--t-border-strong); color: var(--t-muted); font-size: 0.9rem; line-height: 1.4; }
 .cl-code-wait ion-icon { font-size: 20px; flex-shrink: 0; }
+
+/* Tienda cerrada */
+.tn-open { display: inline-block; margin-left: 10px; padding: 3px 10px; border-radius: 999px; font-size: 0.74rem; font-weight: 750; vertical-align: middle; letter-spacing: 0.01em; }
+.tn-open.is-open { background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.tn-open.is-closed { background: var(--t-danger-bg); color: var(--ion-color-danger); }
+.tn-closed:not(:empty) { padding: 12px 16px 0; }
+.cl-closed { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--ion-color-danger); border-radius: var(--t-radius); background: var(--t-danger-bg); }
+.cl-closed ion-icon { flex: none; font-size: 26px; color: var(--ion-color-danger); }
+.cl-closed span { display: flex; flex-direction: column; gap: 3px; }
+.cl-closed strong { font-size: 1rem; color: var(--t-ink); }
+.cl-closed small { font-size: 0.88rem; line-height: 1.45; color: var(--t-ink); }
+.cl-closed.is-compact { margin-bottom: 12px; padding: 12px 14px; }
+.cl-closed.is-compact ion-icon { font-size: 22px; }
+
+.cl-cancel.is-issue { border-color: var(--ion-color-warning-shade); background: var(--t-warning-bg); }
+.cl-cancel.is-issue .cl-cancel-head ion-icon { color: var(--t-warning-text); }
+.cl-edited { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-radius: var(--t-radius-sm); background: var(--t-primary-bg); color: var(--ion-color-primary); font-size: 0.9rem; font-weight: 600; }
+.cl-summary li.is-out span:first-child { color: var(--ion-color-danger); text-decoration: line-through; }
+.cl-swap-row.is-picked { border-color: var(--ion-color-primary); box-shadow: 0 0 0 1px var(--ion-color-primary); }
+.cl-cancel-order { margin: 4px 0 0; min-height: 46px; font-weight: 650; }
