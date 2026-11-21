@@ -10,8 +10,11 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  money,
+  PAYMENT_LABEL,
   uid,
   type CashCut,
+  type CashMethod,
   type CashMovement,
   type CreditMovement,
   type Customer,
@@ -19,15 +22,17 @@ import {
   type Movement,
   type Product,
   type Sale,
+  type SaleItem,
   type Shift,
   type Store,
   type TicketConfig,
   type User,
 } from '../../data/models';
+import { ACTIVE_STATUSES, nextStatus, orderFolio, reservedStock, type CancelReason, type OrderRequest, type PickupOrder } from '../../data/pickup';
 import { CASH_MOVEMENTS, CREDIT_MOVEMENTS, CUSTOMERS, CUTS, DEVICES, MOVEMENTS, PRODUCTS, SALES, SHIFT, STORE, TICKET, USERS } from '../../data/seed';
 import { deviceModel } from '../lib/device';
 import { loadQueue, nativeQueue, saveQueue } from '../lib/queue';
-import { normalizeServer } from '../lib/link';
+import { normalizeServer } from '../../lib/link';
 import { DEFAULT_SYNC_URL, openSync, type SyncLink } from '../lib/sync';
 
 export interface TicketLine {
@@ -103,6 +108,8 @@ interface Data {
   pairing: Pairing | null;
   closedCutId: string | null;
   lastSaleId: string | null;
+  // Pide y recoge (viene de la caja)
+  orders: PickupOrder[];
 }
 
 type StockEntry = { productId: string; qty: number };
@@ -133,7 +140,14 @@ type Action =
   | { type: 'ACCOUNT_UPDATE'; id: string; name: string; customerId: string | null }
   | { type: 'UPSERT_CUSTOMER'; customer: Customer }
   | { type: 'CREDIT_PAYMENT'; movement: CreditMovement }
-  | { type: 'REPLACE_DATA'; data: Data };
+  | { type: 'REPLACE_DATA'; data: Data }
+  // Pide y recoge: mismas reglas que en la caja, para que este celular pueda prepararlos y entregarlos
+  | { type: 'ORDER_RECEIVED'; request: OrderRequest }
+  | { type: 'ORDER_ADVANCE'; id: string; from: PickupOrder['status']; at: number }
+  | { type: 'ORDER_DELIVER'; id: string; sale: Sale; payment: { method: CashMethod; received: number }; pickupCode: string }
+  | { type: 'ORDER_CANCEL'; id: string; reason: CancelReason; missing: string[]; note?: string; at: number }
+  | { type: 'ORDER_ISSUE'; id: string; missing: string[]; at: number }
+  | { type: 'ORDER_EDIT'; id: string; items: { productId: string; qty: number }[]; at: number };
 
 type Message = Action | { type: 'PING'; key: string } | { type: 'BYE'; key: string } | { type: 'WHO' } | { type: 'SNAPSHOT'; data: Data };
 
@@ -141,6 +155,15 @@ type Op =
   | { id: string; kind: 'envio'; product: Product; qty: number; at: number }
   | { id: string; kind: 'producto'; product: Product; isNew: boolean; at: number }
   | { id: string; kind: 'stock'; entries: StockEntry[]; at: number };
+
+// Lo que hizo este celular, para la pantalla de Actividad (solo se guarda en este celular)
+export interface ActivityItem {
+  id: string;
+  kind: 'producto' | 'stock' | 'pedido';
+  title: string;
+  detail: string;
+  at: number;
+}
 
 export interface PendingItem {
   id: string;
@@ -157,6 +180,8 @@ const DEVICE_KEY = 'tendero.dispositivo';
 const SERVER_KEY = 'tendero.servidor';
 const LINK_TIMEOUT_MS = 10000;
 const QUEUE_KEY = 'tendero.pendientes.movil';
+const ACTIVITY_KEY = 'tendero.actividad.movil';
+const ACTIVITY_MAX = 150;
 const CHANNEL = 'tendero';
 const PING_MS = 4000;
 const STALE_MS = 10000;
@@ -184,6 +209,7 @@ function seedData(): Data {
     pairing: null,
     closedCutId: null,
     lastSaleId: null,
+    orders: [],
   };
 }
 
@@ -205,9 +231,12 @@ function write(key: string, value: unknown) {
   }
 }
 
+// Los datos de la caja anteriores a Pide y recoge no traen pedidos
+const withOrders = (d: Data): Data => (Array.isArray(d.orders) ? d : { ...d, orders: [] });
+
 function loadData(): Data {
   const saved = read<Data | null>(DATA_KEY, null);
-  return saved && saved.version === VERSION ? saved : seedData();
+  return saved && saved.version === VERSION ? withOrders(saved) : seedData();
 }
 
 function addToTicket(ticket: TicketLine[], product: Product, qty: number, source: TicketLine['source'], at: number) {
@@ -280,6 +309,7 @@ function reducer(s: Data, a: Action): Data {
         sent: s.sent.map((x) => (x.status === 'en-caja' && inActive(s, x) ? { ...x, status: 'cancelado' } : x)),
       };
     case 'CONFIRM_SALE': {
+      if (a.sale.orderId && s.sales.some((x) => x.id === a.sale.id || x.orderId === a.sale.orderId)) return s;
       const moves: Movement[] = a.sale.items.map((i) => ({
         id: `${a.sale.id}-${i.productId}`,
         productId: i.productId,
@@ -311,10 +341,15 @@ function reducer(s: Data, a: Action): Data {
           const it = a.sale.items.find((i) => i.productId === p.id);
           return it ? { ...p, stock: Math.max(0, p.stock - it.qty) } : p;
         }),
-        ticket: [],
-        account: resetAccount(s, Date.parse(a.sale.date)),
-        sent: s.sent.map((x) => (x.status === 'en-caja' && inActive(s, x) ? { ...x, status: 'cobrado' } : x)),
-        lastSaleId: a.sale.id,
+        // La venta de un pedido no sale de la cuenta abierta: esa se queda como está
+        ...(a.sale.orderId
+          ? {}
+          : {
+              ticket: [],
+              account: resetAccount(s, Date.parse(a.sale.date)),
+              sent: s.sent.map((x) => (x.status === 'en-caja' && inActive(s, x) ? { ...x, status: 'cobrado' as const } : x)),
+              lastSaleId: a.sale.id,
+            }),
       };
     }
     case 'MARK_SALE_SYNCED':
@@ -354,7 +389,82 @@ function reducer(s: Data, a: Action): Data {
     case 'DEVICE_SEEN':
       return { ...s, devices: s.devices.map((d) => (d.id === a.id ? { ...d, lastSeen: iso(a.at) } : d)) };
     case 'REPLACE_DATA':
-      return a.data;
+      return withOrders(a.data);
+    case 'ORDER_RECEIVED': {
+      const r = a.request;
+      if (s.closedCutId || s.orders.some((o) => o.id === r.id) || !/^\d{6}$/.test(String(r.pickupCode ?? ''))) return s;
+      const qty: Record<string, number> = {};
+      for (const it of r.items) qty[it.productId] = (qty[it.productId] ?? 0) + Math.floor(it.qty);
+      const reserved = reservedStock(s.orders);
+      const items: SaleItem[] = [];
+      for (const [id, n] of Object.entries(qty)) {
+        const p = s.products.find((x) => x.id === id);
+        if (!p || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
+        items.push({ productId: p.id, name: p.name, qty: n, price: p.price });
+      }
+      if (!items.length) return s;
+      const n = Math.max(0, ...s.orders.map((o) => Number(o.folio.slice(2)) || 0)) + 1;
+      const at = iso(r.at);
+      const order: PickupOrder = {
+        id: r.id,
+        folio: orderFolio(n),
+        customer: r.customer,
+        items,
+        note: (r.note ?? '').trim().slice(0, 300),
+        total: items.reduce((t, i) => t + i.qty * i.price, 0),
+        status: 'pendiente',
+        createdAt: at,
+        updatedAt: at,
+        pickupCode: r.pickupCode,
+      };
+      return { ...s, orders: [order, ...s.orders] };
+    }
+    case 'ORDER_ADVANCE': {
+      const o = s.orders.find((x) => x.id === a.id);
+      const next = o && nextStatus(o.status);
+      if (!o || o.issue || o.status !== a.from || !next || next === 'entregado') return s;
+      return { ...s, orders: s.orders.map((x) => (x.id === a.id ? { ...x, status: next, updatedAt: iso(a.at) } : x)) };
+    }
+    case 'ORDER_DELIVER': {
+      const o = s.orders.find((x) => x.id === a.id);
+      if (!o || o.issue || o.status !== 'listo' || (o.pickupCode && o.pickupCode !== a.pickupCode)) return s;
+      const after = reducer(s, { type: 'CONFIRM_SALE', sale: a.sale });
+      return {
+        ...after,
+        orders: after.orders.map((x) =>
+          x.id === a.id ? { ...x, status: 'entregado', updatedAt: a.sale.date, deliveredAt: a.sale.date, payment: a.payment, saleId: a.sale.id } : x,
+        ),
+      };
+    }
+    case 'ORDER_CANCEL': {
+      const o = s.orders.find((x) => x.id === a.id);
+      if (!o || !ACTIVE_STATUSES.includes(o.status)) return s;
+      const cancel = { reason: a.reason, missing: a.missing.filter((id) => o.items.some((i) => i.productId === id)), ...(a.note ? { note: a.note } : {}), at: iso(a.at) };
+      return { ...s, orders: s.orders.map((x) => (x.id === a.id ? { ...x, status: 'cancelado', updatedAt: cancel.at, cancel, issue: undefined } : x)) };
+    }
+    case 'ORDER_ISSUE': {
+      const o = s.orders.find((x) => x.id === a.id);
+      const missing = o ? a.missing.filter((id) => o.items.some((i) => i.productId === id)) : [];
+      if (!o || !ACTIVE_STATUSES.includes(o.status) || !missing.length) return s;
+      return { ...s, orders: s.orders.map((x) => (x.id === a.id ? { ...x, issue: { missing, at: iso(a.at) }, updatedAt: iso(a.at) } : x)) };
+    }
+    case 'ORDER_EDIT': {
+      const o = s.orders.find((x) => x.id === a.id);
+      if (!o || !o.issue || !ACTIVE_STATUSES.includes(o.status)) return s;
+      const qty: Record<string, number> = {};
+      for (const it of a.items) qty[it.productId] = (qty[it.productId] ?? 0) + Math.floor(it.qty);
+      const reserved = reservedStock(s.orders, o.id);
+      const items: SaleItem[] = [];
+      for (const [id, n] of Object.entries(qty)) {
+        const p = s.products.find((x) => x.id === id);
+        if (!p || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
+        items.push({ productId: p.id, name: p.name, qty: n, price: p.price });
+      }
+      if (!items.length) return s;
+      const at = iso(a.at);
+      const edited: PickupOrder = { ...o, items, total: items.reduce((t, i) => t + i.qty * i.price, 0), issue: undefined, editedAt: at, updatedAt: at };
+      return { ...s, orders: s.orders.map((x) => (x.id === a.id ? edited : x)) };
+    }
     case 'SET_PAIRING':
       return { ...s, pairing: a.pairing };
     case 'CLOSE_CUT':
@@ -430,11 +540,36 @@ interface AppState extends Omit<Data, 'products' | 'sent' | 'version'> {
   saveProduct: (p: Product, isNew: boolean) => 'enviado' | 'pendiente';
   findByBarcode: (code: string) => ProductView | undefined;
   movementsFor: (productId: string) => Movement[];
+
+  // Pide y recoge desde el celular
+  advanceOrder: (id: string) => void;
+  // Igual que en la caja: avisar al cliente que se agotó algo (el pedido sigue) o cancelarlo con un motivo
+  reportShortage: (id: string, missing: string[]) => void;
+  cancelOrder: (id: string, note: string) => void;
+  deliverOrder: (id: string, method: CashMethod, received: number, pickupCode: string) => Sale | null;
+  activity: ActivityItem[];
 }
 
 const Ctx = createContext<AppState | null>(null);
 
-export function AppProvider({ children }: { children: ReactNode }) {
+// Qué cambió de un producto, en pocas palabras ("Precio $20.00 → $22.00 · Existencia 10 → 12")
+function productChanges(before: Product | undefined, after: Product) {
+  if (!before) return `Lo diste de alta · ${after.stock} pzas · ${money(after.price)}`;
+  const parts: string[] = [];
+  if (before.name !== after.name) parts.push(`Nombre: ${after.name}`);
+  if (before.price !== after.price) parts.push(`Precio ${money(before.price)} → ${money(after.price)}`);
+  if (before.cost !== after.cost) parts.push(`Costo ${money(before.cost)} → ${money(after.cost)}`);
+  if (before.stock !== after.stock) parts.push(`Existencia ${before.stock} → ${after.stock}`);
+  if (before.minStock !== after.minStock) parts.push(`Aviso de poco stock: ${after.minStock}`);
+  if (before.barcode !== after.barcode) parts.push('Código de barras');
+  if (before.photo !== after.photo) parts.push('Foto');
+  if ((before.description ?? '') !== (after.description ?? '')) parts.push('Descripción');
+  if (before.showInApp !== after.showInApp) parts.push(after.showInApp === false ? 'Oculto en la app' : 'Visible en la app');
+  return parts.join(' · ') || 'Sin cambios';
+}
+
+// `employee`: nombre de quien usa el celular (para las ventas de pedidos que entrega)
+export function AppProvider({ children, employee = '' }: { children: ReactNode; employee?: string }) {
   const [data, localDispatch] = useReducer(reducer, undefined, loadData);
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -447,6 +582,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [uploading, setUploading] = useState(false);
   const flushing = useRef(false);
   const [lastUpload, setLastUpload] = useState<{ count: number; at: number } | null>(null);
+
+  const [activity, setActivity] = useState<ActivityItem[]>(() => read(ACTIVITY_KEY, []));
+  const log = useCallback((item: Omit<ActivityItem, 'id' | 'at'>) => {
+    setActivity((list) => [{ ...item, id: uid(), at: Date.now() }, ...list].slice(0, ACTIVITY_MAX));
+  }, []);
 
   const [online, setOnline] = useState(navigator.onLine);
   const [presence, setPresence] = useState<Record<string, number>>({});
@@ -465,6 +605,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => write(DATA_KEY, data), [data]);
+  useEffect(() => write(ACTIVITY_KEY, activity), [activity]);
   // En la app nativa la cola se lee de Preferences al arrancar (y se migra desde localStorage)
   useEffect(() => {
     if (!nativeQueue) return;
@@ -651,10 +792,86 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (product: Product, qty: number) => run({ id: uid(), kind: 'envio', product, qty, at: Date.now() }),
     [run],
   );
-  const addStock = useCallback((entries: StockEntry[]) => run({ id: uid(), kind: 'stock', entries, at: Date.now() }), [run]);
+  const addStock = useCallback(
+    (entries: StockEntry[]) => {
+      const pieces = entries.reduce((n, e) => n + e.qty, 0);
+      const first = viewRef.current.products.find((p) => p.id === entries[0]?.productId);
+      log({
+        kind: 'stock',
+        title: entries.length === 1 && first ? first.name : `${entries.length} productos`,
+        detail: `Entrada de inventario · +${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}`,
+      });
+      return run({ id: uid(), kind: 'stock', entries, at: Date.now() });
+    },
+    [run, log],
+  );
   const saveProduct = useCallback(
-    (product: Product, isNew: boolean) => run({ id: uid(), kind: 'producto', product, isNew, at: Date.now() }),
-    [run],
+    (product: Product, isNew: boolean) => {
+      const before = viewRef.current.products.find((p) => p.id === product.id);
+      log({ kind: 'producto', title: product.name, detail: productChanges(isNew ? undefined : before, product) });
+      return run({ id: uid(), kind: 'producto', product, isNew, at: Date.now() });
+    },
+    [run, log],
+  );
+
+  const advanceOrder = useCallback(
+    (id: string) => {
+      const o = dataRef.current.orders.find((x) => x.id === id);
+      if (!o || o.issue) return;
+      dispatch({ type: 'ORDER_ADVANCE', id, from: o.status, at: Date.now() });
+      log({ kind: 'pedido', title: `${o.folio} · ${o.customer.name}`, detail: o.status === 'pendiente' ? 'Empezaste a prepararlo' : 'Lo marcaste como listo para recoger' });
+    },
+    [dispatch, log],
+  );
+
+  const reportShortage = useCallback(
+    (id: string, missing: string[]) => {
+      const o = dataRef.current.orders.find((x) => x.id === id);
+      if (!o || !missing.length) return;
+      dispatch({ type: 'ORDER_ISSUE', id, missing, at: Date.now() });
+      const names = o.items.filter((i) => missing.includes(i.productId)).map((i) => i.name);
+      log({ kind: 'pedido', title: `${o.folio} · ${o.customer.name}`, detail: `Avisaste que se agotó: ${names.join(', ')}` });
+    },
+    [dispatch, log],
+  );
+
+  const cancelOrder = useCallback(
+    (id: string, note: string) => {
+      const o = dataRef.current.orders.find((x) => x.id === id);
+      if (!o) return;
+      dispatch({ type: 'ORDER_CANCEL', id, reason: 'otro', missing: [], note: note.trim(), at: Date.now() });
+      log({ kind: 'pedido', title: `${o.folio} · ${o.customer.name}`, detail: `Lo cancelaste: ${note.trim()}` });
+    },
+    [dispatch, log],
+  );
+
+  // Entregar y cobrar desde el celular: la venta es la misma que haría la caja, una sola vez por pedido
+  const deliverOrder = useCallback(
+    (id: string, method: CashMethod, received: number, pickupCode: string) => {
+      const s = dataRef.current;
+      const o = s.orders.find((x) => x.id === id);
+      if (!o || o.issue || o.status !== 'listo') return s.sales.find((x) => x.orderId === id) ?? null;
+      if (o.pickupCode && o.pickupCode !== pickupCode) return null;
+      const folio = Math.max(...s.sales.map((x) => x.folio), 1000) + 1;
+      const sale: Sale = {
+        id: `pedido-${o.id}`,
+        folio,
+        date: new Date().toISOString(),
+        items: o.items,
+        total: o.total,
+        method,
+        employee: employee || s.store.owner,
+        paid: method === 'efectivo' ? received : undefined,
+        customerName: o.customer.name,
+        origin: 'pedido',
+        orderId: o.id,
+        orderFolio: o.folio,
+      };
+      dispatch({ type: 'ORDER_DELIVER', id, sale, payment: { method, received: method === 'efectivo' ? received : o.total }, pickupCode });
+      log({ kind: 'pedido', title: `${o.folio} · ${o.customer.name}`, detail: `Entregado y cobrado · ${money(o.total)} (${PAYMENT_LABEL[method].toLowerCase()})` });
+      return sale;
+    },
+    [dispatch, employee, log],
   );
   const findByBarcode = useCallback((code: string) => viewRef.current.products.find((p) => p.barcode === code.trim()), []);
   const movementsFor = useCallback(
@@ -732,6 +949,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     saveProduct,
     findByBarcode,
     movementsFor,
+    advanceOrder,
+    reportShortage,
+    cancelOrder,
+    deliverOrder,
+    activity,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
