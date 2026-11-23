@@ -4,13 +4,15 @@ import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { AreaField } from '../../components/Form';
 import { money } from '../../data/models';
-import { ProductImage, QtyStepper } from '../components/ui';
+import { ProductImage, QtyStepper, StoreClosed } from '../components/ui';
 import { useCart } from '../lib/cart';
+import { useCatalog } from '../lib/catalog';
 
 export const NOTE_MAX = 200;
 
 export default function Carrito() {
   const cart = useCart();
+  const { closed } = useCatalog();
 
   let body;
   if (!cart.ready) {
@@ -74,14 +76,17 @@ export default function Carrito() {
     <IonPage>
       <AppHeader title="Carrito" offlineMessage="tu carrito se queda guardado. Para hacer el pedido necesitas conexión" />
       <IonContent>
-        <div className="page-pad is-narrow">{body}</div>
+        <div className="page-pad is-narrow">
+          {cart.lines.length > 0 && <StoreClosed compact />}
+          {body}
+        </div>
       </IonContent>
       {cart.lines.length > 0 && (
         <IonFooter className="action-footer">
           <IonToolbar>
-            <IonButton expand="block" className="btn-xl" routerLink="/cliente/confirmar">
-              Hacer pedido · {money(cart.total)}
-              <IonIcon slot="end" icon={arrowForward} />
+            <IonButton expand="block" className="btn-xl" routerLink={closed ? undefined : '/cliente/confirmar'} disabled={closed}>
+              {closed ? 'La tienda está cerrada' : `Hacer pedido · ${money(cart.total)}`}
+              {!closed && <IonIcon slot="end" icon={arrowForward} />}
             </IonButton>
           </IonToolbar>
         </IonFooter>

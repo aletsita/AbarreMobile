@@ -2,7 +2,7 @@
 
 La app del celular de Abarré. Al abrirla muestra una animación con el logo y luego **Iniciar sesión**. Todos entran con correo y contraseña, y la cuenta decide qué pantallas ve cada quien:
 
-- **Personal de la tienda:** si el correo es el de un usuario activo de la caja (Dueño, Cajero o Inventario), primero vincula el celular con la caja y luego escanea o busca productos por código, los manda a la caja, da de alta productos nuevos y registra entradas de inventario.
+- **Personal de la tienda:** si el correo es el de un usuario activo de la caja (Dueño, Cajero o Inventario), primero vincula el celular con la caja y luego escanea o busca productos por código, los manda a la caja, revisa y edita el inventario (con escáner), da de alta productos nuevos, y prepara y entrega pedidos escaneando el QR del cliente.
 - **Cliente («Pide y recoge»):** cualquier otra cuenta. Arma su súper, hace el pedido, lo sigue en «Mis pedidos» y recibe notificaciones cuando la tienda cambia el estado. Paga al recoger.
 
 Es una app nativa de **Android** hecha con Capacitor. Durante el desarrollo también corre en el navegador.
@@ -99,10 +99,10 @@ Si Windows pregunta por el firewall al levantar el servidor, permite el acceso d
 
 ### Escáner
 
-`src/admin/lib/scanner.ts` ofrece una sola interfaz (`useScanner`):
+`src/admin/scanner/scanner.ts` ofrece una sola interfaz (`useScanner`):
 
 - **App nativa:** usa ML Kit (`@capacitor-mlkit/barcode-scanning`). Toca **Abrir cámara**: la cámara ocupa toda la pantalla con el mismo visor, la linterna y un botón para cerrar (también cierra el botón atrás). Al leer un código, la cámara se oculta mientras se muestra el resultado y vuelve a abrirse al cerrarlo. El permiso `CAMERA` está en el `AndroidManifest.xml`. Si el permiso se niega, **Reintentar** abre los ajustes de la app.
-- **Navegador:** usa la cámara web con `BarcodeDetector` (`src/admin/hooks/useBarcodeCamera.ts`).
+- **Navegador:** usa la cámara web con `BarcodeDetector` (`src/admin/scanner/useBarcodeCamera.ts`).
 
 ### Cambios sin conexión
 
@@ -139,13 +139,16 @@ Son **notificaciones locales** del sistema (`@capacitor/local-notifications`), s
 | `/cliente/confirmar` | Resumen y envío del pedido |
 | `/cliente/pedido-creado/:id` | Folio y estado |
 | `/cliente/pedidos` | Mis pedidos (Activos / Historial) |
-| `/cliente/pedido/:id` | Detalle con línea de tiempo; si la tienda lo canceló, el aviso con «Elegir otro producto» o «Quitar pedido» |
-| `/cliente/pedido/:id/cambiar` | Pedido cancelado por falta de existencia: productos parecidos y los demás del pedido para armar uno nuevo |
+| `/cliente/pedido/:id` | Detalle con línea de tiempo; si se agotó algo, el aviso con «Elegir otro producto», «Quitar lo agotado y seguir» o «Cancelar pedido» |
+| `/cliente/pedido/:id/cambiar` | Editar el mismo pedido: productos parecidos a los agotados y los demás del pedido |
 | `/cliente/perfil` | Datos, notificaciones, tema y cerrar sesión |
 | `/movil/inicio` | Personal: va a vincular el celular o directo al escáner |
 | `/movil/vincular` | Vincular el celular con la caja (QR, o dirección + código de 6 dígitos) |
-| `/movil/escaner` | Cámara y búsqueda por código de barras |
-| `/movil/enviados` | Actividad: lo enviado a la caja y lo guardado sin conexión |
+| `/movil/escaner` | Cámara y búsqueda por código de barras; muestra la cuenta abierta de la caja (o su cliente) |
+| `/movil/inventario` | Inventario como en la caja: filtros, búsqueda y escáner (abre el producto o lo da de alta) |
+| `/movil/pedidos` | Pedidos de clientes: preparar, marcar listo y entregar |
+| `/movil/entregar` | Escanear el QR del cliente (o sus 6 números) y cobrar |
+| `/movil/enviados` | Actividad por secciones: lo enviado a la caja, productos editados e inventario, pedidos atendidos |
 | `/movil/ajustes` | Cuenta y cerrar sesión, celular vinculado, cambios pendientes, tema |
 | `/movil/producto-nuevo` | Alta de producto |
 | `/movil/producto/:id` | Editar producto |

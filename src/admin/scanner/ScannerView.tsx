@@ -2,7 +2,7 @@ import { IonIcon, IonSpinner } from '@ionic/react';
 import { cameraOutline, checkmarkCircle, closeOutline, flashlight, flashlightOutline, refreshOutline, scanOutline, videocamOffOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useScanner } from '../lib/scanner';
+import { useScanner } from './scanner';
 import './ScannerView.css';
 
 interface Props {

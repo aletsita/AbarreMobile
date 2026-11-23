@@ -25,3 +25,9 @@
   color: var(--ion-color-danger);
   font-size: 19px;
 }
+
+.sent-tabs { padding: 0 12px 10px; }
+.sent-tabs ion-segment-button { min-width: 0; font-size: 0.82rem; }
+.sent-icon.kind-producto { background: var(--t-primary-bg); color: var(--ion-color-primary); }
+.sent-icon.kind-stock { background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.sent-icon.kind-pedido { background: var(--t-warning-bg); color: var(--t-warning-text); }

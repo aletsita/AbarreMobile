@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, decodeToken, onSessionExpired, setApiToken } from '../api';
-import type { Role, StaffRole, TokenClaims } from '../api/types';
+import type { Customer, Role, StaffRole, TokenClaims } from '../api/types';
 import { clearToken, readToken, saveToken } from './tokenStore';
 
 export interface Session {
@@ -19,6 +19,8 @@ interface SessionState {
   notice: string | null;
   clearNotice: () => void;
   register: (input: { name: string; email: string; phone: string; password: string }) => Promise<void>;
+  // Datos de la cuenta con sesión abierta (nombre, correo, teléfono)
+  profile: () => Promise<Customer>;
   login: (email: string, password: string) => Promise<void>;
   logout: (reason?: LogoutReason) => Promise<void>;
   // Tareas que deben correr antes de borrar el token (por ejemplo, quitar las notificaciones)
@@ -96,6 +98,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     register: async (input) => begin((await api.register(input)).token),
     login: async (email, password) => begin((await api.login(email, password)).token),
     logout,
+    profile: () => api.me(),
     onBeforeLogout: (fn) => {
       hooks.current.add(fn);
       return () => hooks.current.delete(fn);

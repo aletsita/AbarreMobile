@@ -32,3 +32,5 @@
 .pd-move-qty { font-weight: 800; font-variant-numeric: tabular-nums; }
 .pd-move-qty.is-in { color: var(--ion-color-success-shade); }
 .pd-move-qty.is-out { color: var(--ion-color-danger); }
+.pd-stock { gap: 12px; align-items: flex-end; }
+.pd-stock > :first-child { flex: 1; min-width: 0; }

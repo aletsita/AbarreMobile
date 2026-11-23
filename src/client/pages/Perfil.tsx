@@ -1,7 +1,6 @@
 import { IonButton, IonContent, IonIcon, IonLabel, IonPage, IonSegment, IonSegmentButton, IonSpinner, useIonAlert } from '@ionic/react';
 import { callOutline, contrastOutline, logOutOutline, mailOutline, moonOutline, notificationsOffOutline, notificationsOutline, sunnyOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
-import { api } from '../../api';
 import { errorMessage } from '../../api/errors';
 import type { Customer } from '../../api/types';
 import { AppHeader } from '../../components/AppHeader';
@@ -18,7 +17,7 @@ const PERMISSION_TEXT: Record<NotifyPermission, string> = {
 };
 
 export default function Perfil() {
-  const { session, logout } = useSession();
+  const { session, logout, profile } = useSession();
   const [alert] = useIonAlert();
   const [theme, setTheme] = useThemeMode();
   const [me, setMe] = useState<Customer | null>(null);
@@ -26,7 +25,7 @@ export default function Perfil() {
   const [permission, setPermission] = useState<NotifyPermission | null>(null);
 
   useEffect(() => {
-    api.me().then(setMe, (e) => setError(errorMessage(e, 'No pudimos cargar tus datos.')));
+    profile().then(setMe, (e) => setError(errorMessage(e, 'No pudimos cargar tus datos.')));
     void notifyPermission().then(setPermission);
   }, []);
 

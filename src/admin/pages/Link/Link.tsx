@@ -26,10 +26,10 @@ import { useRef, useState } from 'react';
 import { useSession } from '../../../session/SessionContext';
 import { AppHeader } from '../../../components/AppHeader';
 import { TextField } from '../../../components/Form';
-import { ScannerView } from '../../components/ScannerView';
+import { ScannerView } from '../../scanner/ScannerView';
 import { useApp, type LinkResult, type ServerStatus } from '../../context/AppContext';
 import { defaultDeviceName } from '../../lib/device';
-import { normalizeServer, parseLinkQr, shortServer } from '../../lib/link';
+import { normalizeServer, parseLinkQr, shortServer } from '../../../lib/link';
 import './Link.css';
 
 type Method = 'qr' | 'codigo';

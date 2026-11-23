@@ -1,15 +1,15 @@
 import { IonButton, IonContent, IonIcon, IonPage, IonRefresher, IonRefresherContent, IonSpinner, useIonAlert, useIonRouter, useIonToast } from '@ionic/react';
-import { cashOutline, checkmarkOutline, closeCircleOutline, swapHorizontalOutline, trashOutline } from 'ionicons/icons';
+import { alertCircleOutline, cashOutline, checkmarkOutline, closeCircleOutline, createOutline, removeCircleOutline, swapHorizontalOutline, trashOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../../api';
 import { ApiError, errorMessage } from '../../api/errors';
-import { ORDER_STEPS, STATUS_LABEL, type Order, type OrderStatus } from '../../api/types';
+import { hasIssue, ORDER_STEPS, STATUS_LABEL, type Order, type OrderStatus } from '../../api/types';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
 import { PickupCode } from '../components/PickupCode';
 import { dateTime, StatusChip } from '../components/ui';
+import { useCatalog } from '../lib/catalog';
 import { useOrders } from '../lib/orders';
 
 const STEP_TEXT: Record<OrderStatus, string> = {
@@ -20,21 +20,141 @@ const STEP_TEXT: Record<OrderStatus, string> = {
   cancelado: 'La tienda canceló tu pedido.',
 };
 
-// La tienda canceló el pedido. Si fue porque se agotó algo, el cliente decide: elegir otro producto o quitar el pedido.
-function CancelNotice({ order }: { order: Order }) {
-  const { upsert } = useOrders();
-  const router = useIonRouter();
+// La tienda avisó que se agotó algo. El pedido sigue en pie: el cliente elige otro producto, quita lo
+// agotado y sigue con lo demás, o cancela el pedido.
+function IssueNotice({ order }: { order: Order }) {
+  const { change, cancel: cancelOrder } = useOrders();
+  const { closed } = useCatalog();
   const [alert] = useIonAlert();
   const [toast] = useIonToast();
   const [busy, setBusy] = useState(false);
-  const stock = order.cancel?.reason === 'sin-existencia';
-  const missing = order.items.filter((i) => order.cancel?.missing.includes(i.productId));
+  const missingIds = order.issue?.missing ?? [];
+  const missing = order.items.filter((i) => missingIds.includes(i.productId));
+  const kept = order.items.filter((i) => !missingIds.includes(i.productId));
 
-  const remove = async () => {
+  const run = async (fn: () => Promise<Order>, done: string) => {
     setBusy(true);
     try {
-      upsert(await api.resolveOrder(order.id, 'quitar'));
-      void toast({ message: `Quitaste el pedido ${order.folio}`, duration: 2500, position: 'top', cssClass: 'toast-app' });
+      await fn();
+      void toast({ message: done, duration: 2500, color: 'success', position: 'top', cssClass: 'toast-app' });
+    } catch (e) {
+      void toast({ message: errorMessage(e, 'No pudimos avisar a la tienda.'), duration: 4000, color: 'danger', position: 'top', cssClass: 'toast-app' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeMissing = () =>
+    alert({
+      header: 'Quitar lo agotado',
+      message: `Tu pedido seguirá con ${kept.length} ${kept.length === 1 ? 'producto' : 'productos'}.`,
+      buttons: [
+        { text: 'Volver', role: 'cancel' },
+        {
+          text: 'Quitar y seguir',
+          handler: () => void run(() => change(order.id, kept.map((i) => ({ productId: i.productId, qty: i.qty }))), 'Listo. La tienda sigue con tu pedido.'),
+        },
+      ],
+    });
+
+  const cancel = () =>
+    alert({
+      header: '¿Cancelar tu pedido?',
+      message: 'La tienda dejará de prepararlo. No se te cobra nada.',
+      buttons: [
+        { text: 'Volver', role: 'cancel' },
+        { text: 'Cancelar pedido', role: 'destructive', handler: () => void run(() => cancelOrder(order.id), `Cancelaste el pedido ${order.folio}`) },
+      ],
+    });
+
+  return (
+    <section className="card cl-cancel is-issue" role="alert">
+      <div className="cl-cancel-head">
+        <IonIcon icon={alertCircleOutline} aria-hidden="true" />
+        <div>
+          <h2>{missing.length === 1 ? 'Se agotó un producto de tu pedido' : 'Se agotaron productos de tu pedido'}</h2>
+          <p>Tu pedido sigue en pie. Elige otro producto en su lugar (otra marca u otro tamaño), quítalo y sigue con lo demás, o cancela el pedido.</p>
+        </div>
+      </div>
+      <ul>
+        {missing.map((i) => (
+          <li key={i.productId}>
+            <strong>{i.qty} ×</strong> {i.name}
+            <em>Agotado</em>
+          </li>
+        ))}
+      </ul>
+      {closed && <p className="cl-cancel-done">La tienda está cerrada por ahora. Podrás responder cuando vuelva a abrir.</p>}
+      <IonButton expand="block" className="btn-lg" routerLink={`/cliente/pedido/${order.id}/cambiar`} disabled={busy || closed}>
+        <IonIcon slot="start" icon={swapHorizontalOutline} />
+        Elegir otro producto
+      </IonButton>
+      {kept.length > 0 && (
+        <IonButton expand="block" fill="outline" className="btn-lg" disabled={busy || closed} onClick={removeMissing}>
+          <IonIcon slot="start" icon={removeCircleOutline} />
+          Quitar lo agotado y seguir
+        </IonButton>
+      )}
+      <IonButton expand="block" fill="clear" color="danger" className="btn-lg" disabled={busy} onClick={cancel}>
+        <IonIcon slot="start" icon={trashOutline} />
+        Cancelar pedido
+      </IonButton>
+    </section>
+  );
+}
+
+// Pedido cancelado (por la tienda o por el cliente)
+// El cliente puede cancelar mientras la tienda no se lo entregue
+function CancelButton({ order }: { order: Order }) {
+  const { cancel } = useOrders();
+  const [alert] = useIonAlert();
+  const [toast] = useIonToast();
+  const [busy, setBusy] = useState(false);
+
+  const confirm = () =>
+    alert({
+      header: `¿Cancelar el pedido ${order.folio}?`,
+      message: order.status === 'pendiente' ? 'La tienda todavía no lo empieza. No se te cobra nada.' : 'La tienda ya lo está preparando. Al cancelarlo deja de prepararlo y no se te cobra nada.',
+      buttons: [
+        { text: 'Volver', role: 'cancel' },
+        {
+          text: 'Cancelar pedido',
+          role: 'destructive',
+          handler: async () => {
+            setBusy(true);
+            try {
+              await cancel(order.id);
+              void toast({ message: `Cancelaste el pedido ${order.folio}`, duration: 2500, color: 'success', position: 'top', cssClass: 'toast-app' });
+            } catch (e) {
+              void toast({ message: errorMessage(e, 'No pudimos cancelar tu pedido.'), duration: 4000, color: 'danger', position: 'top', cssClass: 'toast-app' });
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ],
+    });
+
+  return (
+    <IonButton expand="block" fill="outline" color="danger" className="cl-cancel-order" disabled={busy} onClick={confirm}>
+      <IonIcon slot="start" icon={closeCircleOutline} />
+      Cancelar pedido
+    </IonButton>
+  );
+}
+
+function CancelNotice({ order }: { order: Order }) {
+  const { dismiss } = useOrders();
+  const router = useIonRouter();
+  const [toast] = useIonToast();
+  const [busy, setBusy] = useState(false);
+  const reason = order.cancel?.reason;
+  const missing = order.items.filter((i) => order.cancel?.missing.includes(i.productId));
+
+  const hide = async () => {
+    setBusy(true);
+    try {
+      await dismiss(order.id);
       router.push('/cliente/pedidos', 'back');
     } catch (e) {
       void toast({ message: errorMessage(e), duration: 3500, color: 'danger', position: 'top', cssClass: 'toast-app' });
@@ -43,28 +163,20 @@ function CancelNotice({ order }: { order: Order }) {
     }
   };
 
-  const confirmRemove = () =>
-    alert({
-      header: '¿Quitar este pedido?',
-      message: 'Pasará a tu historial. No se te cobra nada.',
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Quitar pedido', role: 'destructive', handler: () => void remove() },
-      ],
-    });
-
   return (
     <section className="card cl-cancel" role="alert">
       <div className="cl-cancel-head">
         <IonIcon icon={closeCircleOutline} aria-hidden="true" />
         <div>
-          <h2>{stock ? 'Se agotó un producto de tu pedido' : 'La tienda canceló tu pedido'}</h2>
+          <h2>{reason === 'cliente' ? 'Cancelaste este pedido' : 'La tienda canceló tu pedido'}</h2>
           <p>
-            {stock
-              ? 'Lo sentimos, la tienda ya no tiene lo siguiente. Puedes elegir otro producto (otra marca u otro tamaño) o quitar el pedido.'
+            {reason === 'cliente'
+              ? 'La tienda ya no lo va a preparar. No se te cobró nada.'
               : order.cancel?.note
                 ? `Motivo: ${order.cancel.note}`
-                : 'Si tienes dudas, llama a la tienda.'}
+                : reason === 'sin-existencia'
+                  ? 'Se agotaron productos de tu pedido.'
+                  : 'Si tienes dudas, llama a la tienda.'}
           </p>
         </div>
       </div>
@@ -78,21 +190,11 @@ function CancelNotice({ order }: { order: Order }) {
           ))}
         </ul>
       )}
-      {order.resolved ? (
-        <p className="cl-cancel-done">
-          {order.resolved.action === 'quitar' ? 'Quitaste este pedido.' : 'Elegiste otros productos para un pedido nuevo.'}
-        </p>
-      ) : (
-        <>
-          <IonButton expand="block" className="btn-lg" routerLink={`/cliente/pedido/${order.id}/cambiar`}>
-            <IonIcon slot="start" icon={swapHorizontalOutline} />
-            {stock ? 'Elegir otro producto' : 'Volver a pedir'}
-          </IonButton>
-          <IonButton expand="block" fill="outline" color="danger" className="btn-lg" disabled={busy} onClick={confirmRemove}>
-            <IonIcon slot="start" icon={trashOutline} />
-            Quitar pedido
-          </IonButton>
-        </>
+      {!order.resolved && reason !== 'cliente' && (
+        <IonButton expand="block" fill="outline" className="btn-lg" disabled={busy} onClick={() => void hide()}>
+          <IonIcon slot="start" icon={checkmarkOutline} />
+          Entendido, pasarlo al historial
+        </IonButton>
       )}
     </section>
   );
@@ -100,7 +202,7 @@ function CancelNotice({ order }: { order: Order }) {
 
 export default function PedidoDetalle() {
   const { id } = useParams<{ id: string }>();
-  const { orders, upsert } = useOrders();
+  const { orders, load: loadOrder } = useOrders();
   const order = orders.find((o) => o.id === id);
   const [loading, setLoading] = useState(!order);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +210,7 @@ export default function PedidoDetalle() {
   // Al abrir desde una notificación puede que la lista aún no lo tenga: se pide al servidor
   const load = async () => {
     try {
-      upsert(await api.order(id));
+      await loadOrder(id);
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError && e.status === 404 ? 'No encontramos ese pedido.' : errorMessage(e, 'No pudimos cargar el pedido.'));
@@ -163,7 +265,14 @@ export default function PedidoDetalle() {
             <strong className="money">{money(order.total)}</strong>
           </section>
 
+          {hasIssue(order) && <IssueNotice order={order} />}
           {order.status === 'cancelado' && <CancelNotice order={order} />}
+          {order.editedAt && !hasIssue(order) && order.status !== 'cancelado' && (
+            <p className="cl-edited">
+              <IonIcon icon={createOutline} aria-hidden="true" />
+              Cambiaste los productos de tu pedido el {dateTime(order.editedAt)}.
+            </p>
+          )}
           {order.status !== 'entregado' && order.status !== 'cancelado' && <PickupCode order={order} />}
 
           {order.status !== 'cancelado' && <section className="card">
@@ -190,7 +299,7 @@ export default function PedidoDetalle() {
             <h2 className="section-title">Productos</h2>
             <ul>
               {order.items.map((it) => (
-                <li key={it.productId}>
+                <li key={it.productId} className={hasIssue(order) && order.issue!.missing.includes(it.productId) ? 'is-out' : ''}>
                   <span>
                     <strong>{it.qty} ×</strong> {it.name}
                   </span>
@@ -211,6 +320,7 @@ export default function PedidoDetalle() {
               <span><strong>Pago al recoger</strong> en la tienda.</span>
             </div>
           )}
+          {order.status !== 'entregado' && order.status !== 'cancelado' && !hasIssue(order) && <CancelButton order={order} />}
         </div>
       </IonContent>
     </IonPage>

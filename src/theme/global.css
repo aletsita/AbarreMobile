@@ -154,6 +154,34 @@ ion-tab-button.tab-selected { font-weight: 700; }
 ion-tab-button.tab-selected ion-icon { background: var(--t-primary-bg); }
 ion-tab-button ion-label { font-size: 0.7rem; margin-top: 3px; letter-spacing: 0.005em; }
 ion-tab-button ion-badge { top: 4px; min-width: 18px; height: 18px; padding: 2px 5px; font-size: 0.66rem; font-weight: 700; border-radius: 9px; box-shadow: 0 0 0 2px var(--t-surface); }
+ion-tab-button ion-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* Pantalla ancha (tableta acostada, computadora o ventana grande): la barra pasa a un menú lateral fijo,
+   con ícono y nombre en renglón. Al angostar la ventana vuelve abajo sin recargar. */
+@media (min-width: 900px) {
+  ion-tabs { flex-direction: row; }
+  ion-tab-bar {
+    order: -1;
+    flex: 0 0 236px;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 4px;
+    width: 236px;
+    height: 100%;
+    padding: calc(20px + env(safe-area-inset-top)) 12px 20px;
+    --border: 0;
+    border-right: 1px solid var(--t-border);
+    box-shadow: none;
+  }
+  ion-tab-button { flex: 0 0 auto; width: 100%; max-width: none; height: 50px; border-radius: 14px; }
+  ion-tab-button::part(native) { flex-direction: row; justify-content: flex-start; gap: 12px; padding: 0 14px; }
+  ion-tab-button ion-icon { width: 24px; height: 24px; padding: 0; margin: 0; background: none !important; }
+  ion-tab-button ion-label { margin: 0; font-size: 0.95rem; }
+  ion-tab-button.tab-selected { background: var(--t-primary-bg); }
+  ion-tab-button:hover:not(.tab-selected) { background: var(--t-surface-3); }
+  ion-tab-button ion-badge { position: static; margin-left: auto; box-shadow: none; }
+}
 
 ion-toast.toast-app { --border-radius: 14px; --max-width: 440px; --box-shadow: var(--t-shadow-pop); font-weight: 550; }
 ion-alert { --backdrop-opacity: 0.5; }

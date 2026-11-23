@@ -2,7 +2,7 @@ import { apiBaseOf, getServer } from '../lib/server';
 import { ApiError } from './errors';
 import { httpTransport } from './http';
 import type { Method, RequestOptions, Transport } from './transport';
-import type { AuthResponse, CatalogProduct, Customer, NewOrder, Order } from './types';
+import type { AuthResponse, CatalogProduct, Customer, NewOrder, Order, StoreStatus } from './types';
 
 // La API vive en el mismo servidor que la sincronización con la caja (ver API.md)
 function transport(): Transport {
@@ -42,21 +42,34 @@ export const api = {
   me: () => call<Customer>('GET', '/yo'),
 
   catalog: () => call<CatalogProduct[]>('GET', '/catalogo'),
+  store: () => call<StoreStatus>('GET', '/tienda'),
   orders: () => call<Order[]>('GET', '/pedidos'),
   order: (id: string) => call<Order>('GET', `/pedidos/${encodeURIComponent(id)}`),
   // Pedido cancelado por la tienda: quitarlo de los activos o pasar a elegir otros productos
   resolveOrder: (id: string, accion: 'quitar' | 'reemplazar') =>
     call<Order>('POST', `/pedidos/${encodeURIComponent(id)}/resolver`, { body: { accion } }),
+  // Se agotó un producto: la lista nueva de productos del mismo pedido. 409 → ApiError con details: OrderConflict
+  changeOrder: (id: string, items: { productId: string; qty: number }[]) =>
+    call<Order>('POST', `/pedidos/${encodeURIComponent(id)}/cambiar`, { body: { items } }),
+  cancelOrder: (id: string) => call<Order>('POST', `/pedidos/${encodeURIComponent(id)}/cancelar`),
   // 409 → ApiError con details: OrderConflict
   createOrder: (order: NewOrder, idempotencyKey: string) =>
     call<Order>('POST', '/pedidos', { body: order, headers: { 'Idempotency-Key': idempotencyKey } }),
 
-  // Cambios de mis pedidos en vivo. Devuelve la función para cerrar.
-  watchOrders(onOrder: (o: Order) => void, onStatus: (open: boolean) => void): () => void {
+  // Cambios de mis pedidos y de la tienda (abierta o cerrada) en vivo. Devuelve la función para cerrar.
+  watchOrders(onOrder: (o: Order) => void, onStatus: (open: boolean) => void, onStore?: (s: StoreStatus) => void): () => void {
     const sent = token;
     if (!sent) return () => undefined;
     try {
-      return transport().events('/pedidos/eventos', sent, (type, data) => type === 'pedido' && onOrder(data as Order), onStatus);
+      return transport().events(
+        '/pedidos/eventos',
+        sent,
+        (type, data) => {
+          if (type === 'pedido') onOrder(data as Order);
+          else if (type === 'tienda') onStore?.(data as StoreStatus);
+        },
+        onStatus,
+      );
     } catch {
       onStatus(false);
       return () => undefined;

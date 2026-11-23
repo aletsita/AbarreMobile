@@ -1,7 +1,6 @@
 import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonSpinner, IonToolbar, useIonRouter } from '@ionic/react';
 import { alertCircleOutline, cashOutline, cloudOfflineOutline, storefrontOutline } from 'ionicons/icons';
 import { useState } from 'react';
-import { api } from '../../api';
 import { ApiError, errorMessage } from '../../api/errors';
 import type { OrderChange, OrderConflict } from '../../api/types';
 import { AppHeader } from '../../components/AppHeader';
@@ -12,6 +11,7 @@ import { useCart } from '../lib/cart';
 import { useCatalog } from '../lib/catalog';
 import { useOrders } from '../lib/orders';
 import { newPickupCode } from '../lib/pickup';
+import { StoreClosed } from '../components/ui';
 
 function changeText(c: OrderChange) {
   switch (c.kind) {
@@ -45,7 +45,7 @@ export default function Confirmar() {
     }
     setBusy(true);
     try {
-      const order = await api.createOrder(
+      const order = await orders.create(
         {
           items: cart.lines.map((l) => ({ productId: l.productId, qty: l.qty, price: l.price })),
           note: cart.note.trim(),
@@ -55,7 +55,6 @@ export default function Confirmar() {
         },
         cart.orderKey,
       );
-      orders.upsert(order);
       cart.clear();
       void catalog.refresh();
       router.push(`/cliente/pedido-creado/${order.id}`, 'root', 'replace');
@@ -97,6 +96,7 @@ export default function Confirmar() {
       <AppHeader title="Confirmar pedido" backHref="/cliente/carrito" offlineMessage="para hacer el pedido necesitas conexión. Tu carrito se queda guardado" />
       <IonContent>
         <div className="page-pad is-narrow stack">
+          <StoreClosed compact />
           {changes.length > 0 && (
             <section className="cl-changes" role="alert">
               <strong>Algunos productos cambiaron</strong>
@@ -147,7 +147,7 @@ export default function Confirmar() {
       </IonContent>
       <IonFooter className="action-footer">
         <IonToolbar>
-          <IonButton expand="block" className="btn-xl" color="secondary" onClick={() => void submit()} disabled={busy || !cart.lines.length}>
+          <IonButton expand="block" className="btn-xl" color="secondary" onClick={() => void submit()} disabled={busy || !cart.lines.length || catalog.closed}>
             {busy ? <IonSpinner name="crescent" /> : changes.length ? `Confirmar con los cambios · ${money(cart.total)}` : `Confirmar pedido · ${money(cart.total)}`}
           </IonButton>
         </IonToolbar>
