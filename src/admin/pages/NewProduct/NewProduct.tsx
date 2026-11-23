@@ -1,19 +1,50 @@
-import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonToolbar, useIonRouter, useIonToast } from '@ionic/react';
-import { add, alertCircleOutline, barcodeOutline, paperPlaneOutline, remove } from 'ionicons/icons';
-import { useState } from 'react';
+import {
+  IonButton,
+  IonContent,
+  IonFooter,
+  IonIcon,
+  IonPage,
+  IonSpinner,
+  IonToolbar,
+  useIonAlert,
+  useIonRouter,
+  useIonToast,
+  useIonViewDidEnter,
+  useIonViewWillLeave,
+} from '@ionic/react';
+import {
+  add,
+  alertCircleOutline,
+  barcodeOutline,
+  cameraOutline,
+  checkmarkCircleOutline,
+  closeOutline,
+  informationCircleOutline,
+  paperPlaneOutline,
+  remove,
+  sparklesOutline,
+} from 'ionicons/icons';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { autofillProduct } from '../../../application/lookupProduct';
 import { AppHeader } from '../../../components/AppHeader';
 import { MoneyField, TextField } from '../../../components/Form';
+import { generateInternalEan13 } from '../../../domain/ean13';
 import { PhotoPicker } from '../../components/PhotoPicker';
 import { useApp } from '../../context/AppContext';
+import { readPhoto } from '../../lib/photo';
+import { ScannerView } from '../../scanner/ScannerView';
 import { CATEGORIES, money, uid, type Product } from '../../../data/models';
 import './NewProduct.css';
+
+type Notice = { tone: 'ok' | 'info'; text: string };
 
 export default function NewProduct() {
   const { search } = useLocation();
   const { saveProduct, sendToRegister, findByBarcode, store, thisDevice } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
+  const [alert] = useIonAlert();
   const fromScan = new URLSearchParams(search).get('codigo') ?? '';
 
   const [barcode, setBarcode] = useState(fromScan);
@@ -24,6 +55,76 @@ export default function NewProduct() {
   const [stock, setStock] = useState(1);
   const [photo, setPhoto] = useState<string>();
   const [tried, setTried] = useState(false);
+
+  // Alta con la cámara: lee el código y trata de llenar el resto desde una base pública
+  const [scanning, setScanning] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [looking, setLooking] = useState(false);
+  const [notice, setNotice] = useState<Notice>();
+  const lookupId = useRef(0);
+  useIonViewDidEnter(() => setVisible(true));
+  useIonViewWillLeave(() => setVisible(false));
+
+  const lookup = async (code: string) => {
+    const id = ++lookupId.current;
+    setLooking(true);
+    setNotice(undefined);
+    const r = await autofillProduct(code);
+    if (id !== lookupId.current) return;
+    setLooking(false);
+    if (r.status === 'listo') {
+      // Lo que la persona ya escribió no se pisa; lo sugerido siempre se puede editar
+      setName((n) => n.trim() ? n : r.draft.name);
+      if (r.draft.image) {
+        const image = r.draft.image;
+        readPhoto(new File([image], 'foto', { type: image.type }))
+          .then((p) => setPhoto((current) => current ?? p))
+          .catch(() => undefined);
+      }
+      setNotice({ tone: 'ok', text: `Llenamos los datos con ${r.draft.source}. Revisa el nombre y captura el precio y la existencia.` });
+    } else if (r.status === 'no-encontrado') {
+      setNotice({ tone: 'info', text: 'Este código no está en la base pública de productos. Llena los datos a mano.' });
+    } else if (r.status === 'sin-conexion') {
+      setNotice({ tone: 'info', text: 'Sin internet no pudimos buscar los datos. Ya pusimos el código; captura lo demás a mano.' });
+    } else {
+      setNotice({ tone: 'info', text: 'No pudimos consultar la base de productos. Ya pusimos el código; captura lo demás a mano.' });
+    }
+  };
+
+  const takeCode = (raw: string) => {
+    const code = raw.replace(/\s/g, '');
+    setScanning(false);
+    setBarcode(code);
+    const existing = findByBarcode(code);
+    if (existing) {
+      lookupId.current++;
+      setLooking(false);
+      setNotice(undefined);
+      alert({
+        header: 'Ya está en tu inventario',
+        message: `El código ${code} es de ${existing.name}. ¿Quieres editarlo en lugar de darlo de alta otra vez?`,
+        buttons: [
+          { text: 'Cancelar', role: 'cancel' },
+          { text: 'Editar producto', handler: () => router.push(`/movil/producto/${existing.id}`, 'forward', 'replace') },
+        ],
+      });
+      return;
+    }
+    void lookup(code);
+  };
+
+  // Llegó desde el escáner con un código que no existe: se buscan sus datos una vez
+  useEffect(() => {
+    if (fromScan && !findByBarcode(fromScan)) void lookup(fromScan);
+  }, []);
+
+  const generateCode = () => {
+    lookupId.current++;
+    setLooking(false);
+    setScanning(false);
+    setBarcode(generateInternalEan13((c) => !!findByBarcode(c)));
+    setNotice({ tone: 'info', text: 'Código interno de la tienda (empieza con 2). Imprímelo en una etiqueta para escanearlo después.' });
+  };
 
   const duplicate = barcode.trim() ? findByBarcode(barcode) : undefined;
   const errors = {
@@ -96,6 +197,33 @@ export default function NewProduct() {
                 onChange={(v) => setBarcode(v.replace(/\s/g, ''))}
               />
             </div>
+            <div className="np-code-actions">
+              <IonButton fill="outline" className="btn-lg" onClick={() => setScanning((s) => !s)} aria-expanded={scanning}>
+                <IonIcon slot="start" icon={scanning ? closeOutline : cameraOutline} />
+                {scanning ? 'Cerrar cámara' : 'Escanear con la cámara'}
+              </IonButton>
+              <IonButton fill="outline" className="btn-lg" onClick={generateCode}>
+                <IonIcon slot="start" icon={sparklesOutline} />
+                Generar código
+              </IonButton>
+            </div>
+            {scanning && (
+              <div className="np-camera">
+                <ScannerView enabled={visible && scanning} onCode={takeCode} hint="Apunta al código del producto" />
+              </div>
+            )}
+            {looking && (
+              <p className="np-notice" role="status">
+                <IonSpinner name="crescent" />
+                Buscando los datos del producto…
+              </p>
+            )}
+            {notice && !looking && (
+              <p className={`np-notice is-${notice.tone}`} role="status">
+                <IonIcon icon={notice.tone === 'ok' ? checkmarkCircleOutline : informationCircleOutline} />
+                {notice.text}
+              </p>
+            )}
 
             <TextField
               label="Nombre del producto"
