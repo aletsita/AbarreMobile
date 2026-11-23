@@ -33,6 +33,7 @@ import { CASH_MOVEMENTS, CREDIT_MOVEMENTS, CUSTOMERS, CUTS, DEVICES, MOVEMENTS, 
 import { deviceModel } from '../lib/device';
 import { loadQueue, nativeQueue, saveQueue } from '../lib/queue';
 import { normalizeServer } from '../../lib/link';
+import { availableStock, piecesByProduct } from '../../domain/stock';
 import { DEFAULT_SYNC_URL, openSync, type SyncLink } from '../lib/sync';
 
 export interface TicketLine {
@@ -73,6 +74,13 @@ export interface AccountView extends AccountInfo {
 }
 
 export type ProductView = Product & { sync?: SyncState };
+export interface AccountOption {
+  id: string;
+  name: string;
+  customerId: string | null;
+  active: boolean;
+  count: number;
+}
 export type SentView = Omit<SentItem, 'status'> & { status: SentStatus | SyncState };
 
 export interface LastScan {
@@ -115,7 +123,7 @@ interface Data {
 type StockEntry = { productId: string; qty: number };
 
 type Action =
-  | { type: 'SCAN_TO_REGISTER'; product: Product; qty: number; sentId: string; at: number; deviceId: string }
+  | { type: 'SCAN_TO_REGISTER'; product: Product; qty: number; sentId: string; at: number; deviceId: string; accountId?: string }
   | { type: 'REMOVE_SENT'; sentId: string }
   | { type: 'TICKET_ADD'; product: Product; qty: number; at: number }
   | { type: 'TICKET_QTY'; productId: string; delta: number }
@@ -152,7 +160,7 @@ type Action =
 type Message = Action | { type: 'PING'; key: string } | { type: 'BYE'; key: string } | { type: 'WHO' } | { type: 'SNAPSHOT'; data: Data };
 
 type Op =
-  | { id: string; kind: 'envio'; product: Product; qty: number; at: number }
+  | { id: string; kind: 'envio'; product: Product; qty: number; at: number; accountId?: string }
   | { id: string; kind: 'producto'; product: Product; isNew: boolean; at: number }
   | { id: string; kind: 'stock'; entries: StockEntry[]; at: number };
 
@@ -269,16 +277,30 @@ const inActive = (s: Data, x: SentItem) => !x.accountId || x.accountId === s.acc
 
 function reducer(s: Data, a: Action): Data {
   switch (a.type) {
-    case 'SCAN_TO_REGISTER':
+    case 'SCAN_TO_REGISTER': {
+      // El celular elige la cuenta; sin accountId, o si esa cuenta ya no está abierta, va a la activa
+      const parkedTarget = a.accountId && a.accountId !== s.account.id ? s.parked.find((p) => p.id === a.accountId) : undefined;
       return {
         ...s,
-        ticket: addToTicket(s.ticket, a.product, a.qty, 'movil', a.at),
+        ticket: parkedTarget ? s.ticket : addToTicket(s.ticket, a.product, a.qty, 'movil', a.at),
+        parked: parkedTarget
+          ? s.parked.map((p) => (p.id === parkedTarget.id ? { ...p, lines: addToTicket(p.lines, a.product, a.qty, 'movil', a.at) } : p))
+          : s.parked,
         sent: [
-          { id: a.sentId, product: a.product, qty: a.qty, at: a.at, status: 'en-caja' as SentStatus, deviceId: a.deviceId, accountId: s.account.id },
+          {
+            id: a.sentId,
+            product: a.product,
+            qty: a.qty,
+            at: a.at,
+            status: 'en-caja' as SentStatus,
+            deviceId: a.deviceId,
+            accountId: parkedTarget?.id ?? s.account.id,
+          },
           ...s.sent,
         ].slice(0, 200),
         lastScan: { name: a.product.name, deviceId: a.deviceId, at: a.at },
       };
+    }
     case 'REMOVE_SENT': {
       const item = s.sent.find((x) => x.id === a.sentId);
       if (!item) return s;
@@ -534,7 +556,11 @@ interface AppState extends Omit<Data, 'products' | 'sent' | 'version'> {
   linkWithCode: (code: string, name: string, server?: string | null) => Promise<LinkResult>;
   unlink: () => void;
 
-  sendToRegister: (p: Product, qty: number) => 'enviado' | 'pendiente';
+  // Cuentas abiertas en la caja (la activa primero) y a cuál manda este celular lo que escanea
+  accounts: AccountOption[];
+  sendToRegister: (p: Product, qty: number, accountId?: string) => 'enviado' | 'pendiente';
+  // Piezas que todavía se pueden mandar a una cuenta: existencia − apartado por pedidos − lo que ya está en cuentas
+  availableFor: (productId: string) => number;
   removeSent: (sentId: string) => void;
   addStock: (entries: StockEntry[]) => 'enviado' | 'pendiente';
   saveProduct: (p: Product, isNew: boolean) => 'enviado' | 'pendiente';
@@ -713,7 +739,7 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
     switch (op.kind) {
       case 'envio': {
         const fresh = dataRef.current.products.find((p) => p.id === op.product.id) ?? op.product;
-        return { type: 'SCAN_TO_REGISTER', product: fresh, qty: op.qty, sentId: op.id, at: Date.now(), deviceId: deviceId ?? '' };
+        return { type: 'SCAN_TO_REGISTER', product: fresh, qty: op.qty, sentId: op.id, at: Date.now(), deviceId: deviceId ?? '', accountId: op.accountId };
       }
       case 'producto':
         return { type: 'UPSERT_PRODUCT', product: op.product, isNew: op.isNew, at: op.at };
@@ -789,8 +815,34 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
   viewRef.current = view;
 
   const sendToRegister = useCallback(
-    (product: Product, qty: number) => run({ id: uid(), kind: 'envio', product, qty, at: Date.now() }),
+    (product: Product, qty: number, accountId?: string) => run({ id: uid(), kind: 'envio', product, qty, at: Date.now(), accountId }),
     [run],
+  );
+
+  const accounts = useMemo<AccountOption[]>(
+    () => [
+      { id: data.account.id, name: data.account.name, customerId: data.account.customerId, active: true, count: data.ticket.reduce((n, l) => n + l.qty, 0) },
+      ...data.parked.map((p) => ({ id: p.id, name: p.name, customerId: p.customerId, active: false, count: p.lines.reduce((n, l) => n + l.qty, 0) })),
+    ],
+    [data.account, data.ticket, data.parked],
+  );
+
+  // Lo comprometido cuenta también los envíos que esperan conexión en este celular
+  const committed = useMemo(() => {
+    const reserved = reservedStock(data.orders);
+    const inAccounts = piecesByProduct([
+      ...[data.ticket, ...data.parked.map((p) => p.lines)].flat().map((l) => ({ productId: l.product.id, qty: l.qty })),
+      ...queue.flatMap((op) => (op.kind === 'envio' ? [{ productId: op.product.id, qty: op.qty }] : [])),
+    ]);
+    return { reserved, inAccounts };
+  }, [data.orders, data.ticket, data.parked, queue]);
+
+  const availableFor = useCallback(
+    (productId: string) => {
+      const p = viewRef.current.products.find((x) => x.id === productId);
+      return p ? availableStock(p.stock, committed.reserved[productId], committed.inAccounts[productId]) : 0;
+    },
+    [committed],
   );
   const addStock = useCallback(
     (entries: StockEntry[]) => {
@@ -941,6 +993,8 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
     },
 
     sendToRegister,
+    accounts,
+    availableFor,
     removeSent: (sentId) => {
       if (queueRef.current.some((o) => o.id === sentId)) setQueue((q) => q.filter((o) => o.id !== sentId));
       else dispatch({ type: 'REMOVE_SENT', sentId });

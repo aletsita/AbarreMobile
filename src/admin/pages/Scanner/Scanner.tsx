@@ -9,6 +9,7 @@ import {
   IonSegmentButton,
   IonToggle,
   IonToolbar,
+  useIonActionSheet,
   useIonAlert,
   useIonRouter,
   useIonToast,
@@ -21,6 +22,7 @@ import {
   archiveOutline,
   cartOutline,
   checkmarkDone,
+  chevronDown,
   chevronForward,
   linkOutline,
   personOutline,
@@ -30,7 +32,7 @@ import {
   searchOutline,
   trashOutline,
 } from 'ionicons/icons';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppHeader } from '../../../components/AppHeader';
 import { BarcodeSearch } from '../../components/BarcodeSearch';
 import { EmptyState } from '../../../components/EmptyState';
@@ -67,11 +69,30 @@ export function SentPill({ status }: { status: SentView['status'] }) {
   return <span className={`status-pill st-${status}`}>{STATUS_LABEL[status]}</span>;
 }
 
+// Cuenta de la caja a la que este celular manda lo que escanea; se recuerda entre visitas
+const TARGET_KEY = 'tendero.cuentaDestino';
+function readTarget() {
+  try {
+    return localStorage.getItem(TARGET_KEY);
+  } catch {
+    return null;
+  }
+}
+function writeTarget(id: string) {
+  try {
+    localStorage.setItem(TARGET_KEY, id);
+  } catch {
+    /* almacenamiento bloqueado */
+  }
+}
+
 export default function Scanner() {
-  const { products, sent, thisDevice, store, account, customers, addStock, findByBarcode, isLive, online } = useApp();
+  const { products, sent, thisDevice, store, accounts, customers, addStock, findByBarcode, isLive, online } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
   const [alert] = useIonAlert();
+  const [actionSheet] = useIonActionSheet();
+  const [targetId, setTargetId] = useState<string | null>(readTarget);
   const [mode, setMode] = useState<ScanMode>('vender');
   const [batchMode, setBatchMode] = useState(false);
   const [batch, setBatch] = useState<BatchLine[]>([]);
@@ -87,7 +108,44 @@ export default function Scanner() {
 
   const newProduct = (code?: string) => router.push(code ? `/movil/producto-nuevo?codigo=${encodeURIComponent(code)}` : '/movil/producto-nuevo');
 
+  // Si la cuenta elegida ya se cerró en la caja, hay que elegir otra antes de seguir vendiendo
+  const target = accounts.find((a) => a.id === targetId);
+  const accountLabel = (a: { name: string; customerId: string | null }) => {
+    const c = a.customerId ? customers.find((x) => x.id === a.customerId) : undefined;
+    return c && c.name !== a.name ? `${a.name} · ${c.name}` : a.name;
+  };
+  const needsTarget = mode === 'vender' && !!thisDevice && !target;
+
+  const chooseTarget = () =>
+    actionSheet({
+      header: '¿A qué cuenta mandas lo que escaneas?',
+      buttons: [
+        ...accounts.map((a) => ({
+          text: `${a.id === targetId ? '✓ ' : ''}${accountLabel(a)} · ${a.count ? `${a.count} art.` : 'vacía'}${a.active ? ' (en pantalla)' : ''}`,
+          handler: () => {
+            setTargetId(a.id);
+            writeTarget(a.id);
+          },
+        })),
+        { text: 'Cancelar', role: 'cancel' },
+      ],
+    });
+
+  // La primera vez (o si su cuenta se cerró) se pide elegir antes de escanear
+  const asked = useRef(false);
+  useEffect(() => {
+    if (needsTarget && visible && !asked.current) {
+      asked.current = true;
+      void chooseTarget();
+    }
+    if (!needsTarget) asked.current = false;
+  }, [needsTarget, visible]);
+
   const handleProduct = (p: ProductView, qty = 1) => {
+    if (needsTarget) {
+      void chooseTarget();
+      return;
+    }
     setLastScanned(p.name);
     if (mode === 'inventario' && batchMode) {
       setBatch((b) =>
@@ -146,8 +204,8 @@ export default function Scanner() {
   const recent = mine.slice(0, 4);
   const batchPieces = batch.reduce((n, l) => n + l.qty, 0);
   const registerLive = isLive('panel');
-  // A dónde van los envíos: la cuenta abierta en la caja y, si tiene, su cliente
-  const customer = account.customerId ? customers.find((c) => c.id === account.customerId) : undefined;
+  // A dónde van los envíos: la cuenta elegida y, si tiene, su cliente
+  const customer = target?.customerId ? customers.find((c) => c.id === target.customerId) : undefined;
 
   return (
     <IonPage>
@@ -171,19 +229,22 @@ export default function Scanner() {
             </div>
           )}
           {thisDevice && (
-            <div className="scan-account">
+            <button type="button" className={`scan-account ${target ? '' : 'is-missing'}`} onClick={() => void chooseTarget()} aria-label="Cambiar la cuenta a la que se envía">
               <IonIcon icon={customer ? personOutline : receiptOutline} aria-hidden="true" />
-              {customer ? (
+              {!target ? (
+                <span><strong>Elige a qué cuenta enviar</strong></span>
+              ) : customer ? (
                 <span>
-                  Cliente <strong>{customer.name}</strong>
-                  {account.name !== customer.name && <> · {account.name}</>}
+                  Enviando a <strong>{customer.name}</strong>
+                  {target.name !== customer.name && <> · {target.name}</>}
                 </span>
               ) : (
                 <span>
-                  Cuenta abierta: <strong>{account.name}</strong>
+                  Enviando a <strong>{target.name}</strong>
                 </span>
               )}
-            </div>
+              <span className="scan-account-change">Cambiar <IonIcon icon={chevronDown} /></span>
+            </button>
           )}
           <IonSegment value={mode} onIonChange={(e) => setMode(e.detail.value as ScanMode)} className="scan-modes" aria-label="Modo del escáner">
             <IonSegmentButton value="vender" layout="icon-start">
@@ -206,13 +267,21 @@ export default function Scanner() {
         <div className={`scan-layout ${typing ? 'is-typing' : ''}`}>
           <div className="scan-camera">
             <ScannerView
-              enabled={visible && !typing}
+              enabled={visible && !typing && !needsTarget}
               paused={!!current || asking}
               onCode={handleCode}
               lastScanned={lastScanned}
-              hint={MODE_HINT[mode]}
+              hint={mode === 'vender' && target ? `Se agrega a ${target.name}` : MODE_HINT[mode]}
             />
-            <button type="button" className="scanner-simulate" onClick={simulateScan} disabled={!!current || asking}>
+            {needsTarget && (
+              <div className="scan-need-account">
+                <IonIcon icon={receiptOutline} />
+                <strong>Primero elige la cuenta</strong>
+                <span>Lo que escanees se agrega a esa cuenta en {store.register}.</span>
+                <IonButton onClick={() => void chooseTarget()}>Elegir cuenta</IonButton>
+              </div>
+            )}
+            <button type="button" className="scanner-simulate" onClick={simulateScan} disabled={!!current || asking || needsTarget}>
               <IonIcon icon={scanOutline} />
               Simular escaneo
             </button>
@@ -328,7 +397,13 @@ export default function Scanner() {
         </IonFooter>
       )}
 
-      <ScanResultSheet product={current} mode={mode} initialQty={currentQty} onClose={() => setCurrent(undefined)} />
+      <ScanResultSheet
+        product={current}
+        mode={mode}
+        initialQty={currentQty}
+        target={target && { id: target.id, name: accountLabel(target) }}
+        onClose={() => setCurrent(undefined)}
+      />
     </IonPage>
   );
 }

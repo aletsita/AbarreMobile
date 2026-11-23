@@ -128,6 +128,42 @@
 .scanner-simulate:disabled { opacity: 0.5; }
 .scan-layout.is-typing .scanner-simulate { display: none; }
 
-.scan-account { display: flex; align-items: center; gap: 8px; min-height: 26px; margin: -4px 0 8px; padding: 0 2px; font-size: 0.84rem; color: var(--t-ink); }
+.scan-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin: -4px 0 8px;
+  padding: 0 12px;
+  border: 1.5px solid var(--t-border-strong);
+  border-radius: var(--t-radius-sm);
+  background: var(--t-surface);
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--t-ink);
+  text-align: left;
+}
+.scan-account > span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scan-account-change { display: inline-flex; align-items: center; gap: 2px; flex: none; font-size: 0.82rem; font-weight: 700; color: var(--ion-color-primary); }
+.scan-account.is-missing { border-color: var(--ion-color-warning); background: var(--t-warning-bg); color: var(--t-warning-text); }
+/* Sin cuenta elegida la cámara no lee: primero se elige a dónde va */
+.scan-need-account {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  text-align: center;
+}
+.scan-need-account ion-icon { font-size: 30px; }
+.scan-need-account span { font-size: 0.88rem; opacity: 0.85; }
+.scan-need-account ion-button { margin-top: 6px; min-height: 44px; }
 .scan-account ion-icon { flex: none; font-size: 16px; color: var(--ion-color-primary); }
 .scan-account strong { font-weight: 700; }
