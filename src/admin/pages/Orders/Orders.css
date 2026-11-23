@@ -49,8 +49,31 @@
 .dl-methods button ion-icon { font-size: 22px; color: var(--t-muted); }
 .dl-methods button.is-active { border-color: var(--ion-color-primary); background: var(--t-primary-bg); color: var(--ion-color-primary); }
 .dl-methods button.is-active ion-icon { color: var(--ion-color-primary); }
-.dl-quick { display: flex; flex-wrap: wrap; gap: 8px; }
-.dl-quick button { min-height: 40px; padding: 0 14px; border: 1px solid var(--t-border-strong); border-radius: 999px; background: var(--t-surface); color: var(--t-ink); font: inherit; font-weight: 650; }
+/* Billetes: una fila que se desliza de lado, como las cuentas abiertas de la caja web */
+.dl-quick { display: flex; gap: 8px; margin: 0 -16px; padding: 2px 16px 6px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.dl-quick button {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 104px;
+  min-height: 56px;
+  padding: 6px 14px;
+  border: 1px solid var(--t-border-strong);
+  border-radius: 12px;
+  background: var(--t-surface);
+  color: var(--t-ink);
+  font: inherit;
+  line-height: 1.25;
+  text-align: left;
+  scroll-snap-align: start;
+}
+.dl-quick button strong { font-size: 1rem; font-weight: 750; }
+.dl-quick button span { font-size: 0.76rem; color: var(--t-muted); }
+.dl-quick button.is-active { border-color: var(--ion-color-primary); box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.14); }
+.dl-quick button.is-active strong { color: var(--ion-color-primary); }
+.dl-quick button:disabled { opacity: 0.45; border-style: dashed; }
 .dl-change { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px; border-radius: var(--t-radius-sm); background: var(--t-success-bg); color: var(--ion-color-success-shade); font-weight: 700; }
 .dl-change.is-short { background: var(--t-danger-bg); color: var(--ion-color-danger); }
 .dl-change strong { font-size: 1.3rem; }

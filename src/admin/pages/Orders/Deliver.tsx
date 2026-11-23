@@ -12,6 +12,8 @@ import './Orders.css';
 
 const MAX_FAILS = 5;
 const LOCK_MS = 60000;
+// Billetes con los que suele pagar el cliente; los menores al total se ven pero no se pueden elegir
+const BILLS = [20, 50, 100, 200, 500, 1000];
 const METHOD_ICON: Record<CashMethod, string> = { efectivo: cashOutline, tarjeta: cardOutline, transferencia: swapHorizontalOutline };
 
 // Entregar un pedido desde el celular: el código del cliente (QR o 6 dígitos) y después el cobro.
@@ -174,14 +176,26 @@ export default function Deliver() {
 
               {method === 'efectivo' && (
                 <>
-                  <MoneyField label="Recibí" value={received} onChange={setReceived} />
-                  <div className="dl-quick">
-                    {[total, 50, 100, 200, 500].filter((v, i, all) => v >= total && all.indexOf(v) === i).map((v) => (
-                      <button key={v} type="button" onClick={() => setReceived(String(v))}>
-                        {v === total ? 'Exacto' : money(v)}
+                  <div className="dl-quick" role="group" aria-label="Con cuánto paga">
+                    <button type="button" className={paid === total ? 'is-active' : ''} aria-pressed={paid === total} onClick={() => setReceived(String(total))}>
+                      <strong>Exacto</strong>
+                      <span className="money">{money(total)}</span>
+                    </button>
+                    {BILLS.map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        className={paid === v ? 'is-active' : ''}
+                        aria-pressed={paid === v}
+                        disabled={v < total}
+                        onClick={() => setReceived(String(v))}
+                      >
+                        <strong className="money">{money(v).replace('.00', '')}</strong>
+                        <span>{v < total ? 'No alcanza' : `Cambio ${money(v - total)}`}</span>
                       </button>
                     ))}
                   </div>
+                  <MoneyField label="Otro monto" hint="Escribe con cuánto paga si no es ninguno de arriba" value={received} onChange={setReceived} />
                   <div className={`dl-change ${short ? 'is-short' : ''}`}>
                     <span>{short ? 'Falta' : 'Cambio'}</span>
                     <strong className="money">{money(Math.abs(paid - total))}</strong>
