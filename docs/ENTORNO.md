@@ -91,7 +91,7 @@ Utilizamos Git para llevar el historial de cambios, con una rama estable (`main`
 |---|---|
 | Número de commits | `21` |
 | Ramas | `remotes/origin/HEAD -> origin/main, remotes/origin/develop, remotes/origin/feature/Alexa` |
-| Autores | `aletsuta, Monge25, Nicoletha` |
+| Autores | `aletsita, Monge25, Nicoletha` |
 | Etiquetas | `v0.1.0` |
 | Archivos ignorados | `node_modules`, `.env`, carpetas de compilación de Android y credenciales (ver `.gitignore`) |
 
