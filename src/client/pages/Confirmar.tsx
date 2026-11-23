@@ -1,5 +1,5 @@
 import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonSpinner, IonToolbar, useIonRouter } from '@ionic/react';
-import { alertCircleOutline, cashOutline, cloudOfflineOutline, storefrontOutline } from 'ionicons/icons';
+import { alertCircleOutline, cardOutline, cloudOfflineOutline, lockClosedOutline, storefrontOutline } from 'ionicons/icons';
 import { useState } from 'react';
 import { ApiError, errorMessage } from '../../api/errors';
 import type { OrderChange, OrderConflict } from '../../api/types';
@@ -10,7 +10,7 @@ import { useOnline } from '../../lib/online';
 import { useCart } from '../lib/cart';
 import { useCatalog } from '../lib/catalog';
 import { useOrders } from '../lib/orders';
-import { newPickupCode } from '../lib/pickup';
+import { openPayment } from '../lib/payment';
 import { StoreClosed } from '../components/ui';
 
 function changeText(c: OrderChange) {
@@ -50,13 +50,14 @@ export default function Confirmar() {
           items: cart.lines.map((l) => ({ productId: l.productId, qty: l.qty, price: l.price })),
           note: cart.note.trim(),
           expectedTotal: cart.total,
-          // Si el envío se reintenta con la misma clave, el servidor regresa el pedido con su código original
-          pickupCode: newPickupCode(),
         },
+        // Si el envío se reintenta con la misma clave, el servidor regresa el mismo pedido y la misma página de pago
         cart.orderKey,
       );
       cart.clear();
       void catalog.refresh();
+      // El monto lo calculó el servidor. La tarjeta se escribe en la página de Stripe, no en la app.
+      if (order.paymentUrl) openPayment(order.paymentUrl);
       router.push(`/cliente/pedido-creado/${order.id}`, 'root', 'replace');
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && (e.details as OrderConflict | undefined)?.code === 'pedido-cambio') {
@@ -133,8 +134,12 @@ export default function Confirmar() {
             <span>Pasa a <strong>recoger tu pedido a la tienda</strong> cuando te avisemos que está listo.</span>
           </div>
           <div className="cl-pickup">
-            <IonIcon icon={cashOutline} />
-            <span><strong>Pagas al recoger</strong> en la tienda. No se cobra nada en la app.</span>
+            <IonIcon icon={cardOutline} />
+            <span><strong>Pagas en línea</strong> con tarjeta al confirmar. La tienda empieza tu pedido en cuanto se confirma el pago.</span>
+          </div>
+          <div className="cl-pickup">
+            <IonIcon icon={lockClosedOutline} />
+            <span>El pago se hace en la página segura de Stripe: la app nunca ve los datos de tu tarjeta.</span>
           </div>
 
           {error && (
@@ -148,7 +153,7 @@ export default function Confirmar() {
       <IonFooter className="action-footer">
         <IonToolbar>
           <IonButton expand="block" className="btn-xl" color="secondary" onClick={() => void submit()} disabled={busy || !cart.lines.length || catalog.closed}>
-            {busy ? <IonSpinner name="crescent" /> : changes.length ? `Confirmar con los cambios · ${money(cart.total)}` : `Confirmar pedido · ${money(cart.total)}`}
+            {busy ? <IonSpinner name="crescent" /> : changes.length ? `Confirmar y pagar con los cambios · ${money(cart.total)}` : `Confirmar y pagar · ${money(cart.total)}`}
           </IonButton>
         </IonToolbar>
       </IonFooter>

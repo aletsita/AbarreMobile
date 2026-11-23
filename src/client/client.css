@@ -424,3 +424,28 @@
 .cl-summary li.is-out span:first-child { color: var(--ion-color-danger); text-decoration: line-through; }
 .cl-swap-row.is-picked { border-color: var(--ion-color-primary); box-shadow: 0 0 0 1px var(--ion-color-primary); }
 .cl-cancel-order { margin: 4px 0 0; min-height: 46px; font-weight: 650; }
+
+/* Pago en línea */
+.cl-pay-chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 0.76rem; font-weight: 700; white-space: nowrap; }
+.cl-pay-chip.is-pagado { background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.cl-pay-chip.is-pendiente_de_pago { background: var(--t-warning-bg); color: var(--t-warning-text); }
+.cl-pay-chip.is-fallido,
+.cl-pay-chip.is-por_reembolsar { background: var(--t-danger-bg); color: var(--ion-color-danger); }
+.cl-pay-chip.is-reembolsado { background: var(--t-surface-3); color: var(--t-muted); }
+.cl-order-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-order-code { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.cl-order-code small { color: var(--t-muted); font-size: 0.76rem; }
+.cl-order-code strong { font-size: 1.6rem; letter-spacing: 0.12em; font-variant-numeric: tabular-nums; font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }
+
+.cl-pay { display: flex; flex-direction: column; gap: 12px; }
+.cl-pay-head { display: flex; align-items: flex-start; gap: 12px; }
+.cl-pay-head > ion-icon, .cl-pay-head > ion-spinner { flex: none; font-size: 28px; width: 28px; height: 28px; }
+.cl-pay-head h2 { margin: 0 0 4px; font-size: 1.05rem; }
+.cl-pay-head p { margin: 0; color: var(--t-muted); }
+.cl-pay.is-waiting { border-color: var(--ion-color-warning); background: var(--t-warning-bg); }
+.cl-pay.is-failed { border-color: var(--ion-color-danger); background: var(--t-danger-bg); }
+.cl-pay.is-failed .cl-pay-head > ion-icon { color: var(--ion-color-danger); }
+.cl-pay.is-refund .cl-pay-head > ion-icon { color: var(--ion-color-primary); }
+.cl-pay-ok { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; border-radius: var(--t-radius-sm); background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.cl-pay-ok ion-icon { flex: none; font-size: 22px; }
+.cl-created-icon.is-pay { background: var(--t-warning-bg); color: var(--t-warning-text); }
