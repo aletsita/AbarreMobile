@@ -28,13 +28,13 @@ import {
   type TicketConfig,
   type User,
 } from '../../data/models';
-import { ACTIVE_STATUSES, nextStatus, orderFolio, reservedStock, type CancelReason, type OrderRequest, type PickupOrder } from '../../data/pickup';
+import { ACTIVE_STATUSES, isPaidOnline, nextStatus, orderFolio, PICKUP_CODE, reservedStock, type CancelReason, type OrderRequest, type PickupOrder } from '../../data/pickup';
 import { CASH_MOVEMENTS, CREDIT_MOVEMENTS, CUSTOMERS, CUTS, DEVICES, MOVEMENTS, PRODUCTS, SALES, SHIFT, STORE, TICKET, USERS } from '../../data/seed';
 import { deviceModel } from '../lib/device';
 import { loadQueue, nativeQueue, saveQueue } from '../lib/queue';
 import { normalizeServer } from '../../lib/link';
-import { availableStock, piecesByProduct } from '../../domain/stock';
-import { DEFAULT_SYNC_URL, openSync, type SyncLink } from '../lib/sync';
+import { availableStock, piecesByProduct, type Shortfall } from '../../domain/stock';
+import { DEFAULT_SYNC_URL, openSync, type SendResult, type SyncLink } from '../lib/sync';
 
 export interface TicketLine {
   product: Product;
@@ -155,7 +155,21 @@ type Action =
   | { type: 'ORDER_DELIVER'; id: string; sale: Sale; payment: { method: CashMethod; received: number }; pickupCode: string }
   | { type: 'ORDER_CANCEL'; id: string; reason: CancelReason; missing: string[]; note?: string; at: number }
   | { type: 'ORDER_ISSUE'; id: string; missing: string[]; at: number }
-  | { type: 'ORDER_EDIT'; id: string; items: { productId: string; qty: number }[]; at: number };
+  | { type: 'ORDER_EDIT'; id: string; items: { productId: string; qty: number }[]; at: number }
+  // Existencia y apartado según el servidor: llega después de cada venta, pedido o ajuste (ver server/api.js)
+  | { type: 'STOCK'; items: { productId: string; stock: number; reserved: number }[]; at: number };
+
+// Resultado de lo que el servidor revisa antes de aplicarlo (preparar, entregar)
+export type Outcome<T> =
+  | { ok: true; value: T; offline?: boolean }
+  | { ok: false; code?: string; message: string; shortages?: Shortfall[] };
+
+const refused = (r: Exclude<SendResult, { ok: true }>, fallback: string): Outcome<never> => ({
+  ok: false,
+  code: r.body.code,
+  message: r.body.message || fallback,
+  shortages: r.body.faltantes,
+});
 
 type Message = Action | { type: 'PING'; key: string } | { type: 'BYE'; key: string } | { type: 'WHO' } | { type: 'SNAPSHOT'; data: Data };
 
@@ -414,7 +428,8 @@ function reducer(s: Data, a: Action): Data {
       return withOrders(a.data);
     case 'ORDER_RECEIVED': {
       const r = a.request;
-      if (s.closedCutId || s.orders.some((o) => o.id === r.id) || !/^\d{6}$/.test(String(r.pickupCode ?? ''))) return s;
+      if (s.closedCutId || s.orders.some((o) => o.id === r.id) || !PICKUP_CODE.test(String(r.pickupCode ?? ''))) return s;
+      if (r.payment && r.payment.status !== 'pagado') return s;
       const qty: Record<string, number> = {};
       for (const it of r.items) qty[it.productId] = (qty[it.productId] ?? 0) + Math.floor(it.qty);
       const reserved = reservedStock(s.orders);
@@ -438,6 +453,7 @@ function reducer(s: Data, a: Action): Data {
         createdAt: at,
         updatedAt: at,
         pickupCode: r.pickupCode,
+        ...(r.payment ? { online: r.payment } : {}),
       };
       return { ...s, orders: [order, ...s.orders] };
     }
@@ -445,11 +461,13 @@ function reducer(s: Data, a: Action): Data {
       const o = s.orders.find((x) => x.id === a.id);
       const next = o && nextStatus(o.status);
       if (!o || o.issue || o.status !== a.from || !next || next === 'entregado') return s;
+      if (o.online && !isPaidOnline(o)) return s;
       return { ...s, orders: s.orders.map((x) => (x.id === a.id ? { ...x, status: next, updatedAt: iso(a.at) } : x)) };
     }
     case 'ORDER_DELIVER': {
       const o = s.orders.find((x) => x.id === a.id);
       if (!o || o.issue || o.status !== 'listo' || (o.pickupCode && o.pickupCode !== a.pickupCode)) return s;
+      if (isPaidOnline(o) !== (a.sale.method === 'en_linea')) return s;
       const after = reducer(s, { type: 'CONFIRM_SALE', sale: a.sale });
       return {
         ...after,
@@ -530,6 +548,15 @@ function reducer(s: Data, a: Action): Data {
         creditMovements: [a.movement, ...s.creditMovements],
         customers: s.customers.map((c) => (c.id === a.movement.customerId ? { ...c, balance: Math.max(0, c.balance - a.movement.amount) } : c)),
       };
+    case 'STOCK':
+      // El servidor manda la existencia real: el inventario del celular se pone al día sin recargar
+      return {
+        ...s,
+        products: s.products.map((p) => {
+          const it = a.items.find((i) => i.productId === p.id);
+          return it ? { ...p, stock: it.stock } : p;
+        }),
+      };
     default:
       // Mensajes de la caja que este celular no usa (por ejemplo, los de Pide y recoge)
       return s;
@@ -568,11 +595,13 @@ interface AppState extends Omit<Data, 'products' | 'sent' | 'version'> {
   movementsFor: (productId: string) => Movement[];
 
   // Pide y recoge desde el celular
-  advanceOrder: (id: string) => void;
+  // Empezar a preparar: el servidor revisa que alcance el inventario; si no, dice qué falta
+  advanceOrder: (id: string) => Promise<Outcome<null>>;
   // Igual que en la caja: avisar al cliente que se agotó algo (el pedido sigue) o cancelarlo con un motivo
   reportShortage: (id: string, missing: string[]) => void;
   cancelOrder: (id: string, note: string) => void;
-  deliverOrder: (id: string, method: CashMethod, received: number, pickupCode: string) => Sale | null;
+  // method en_linea: pedido pagado en la app, no se cobra (el servidor valida el código)
+  deliverOrder: (id: string, method: CashMethod, received: number, pickupCode: string) => Promise<Outcome<Sale>>;
   activity: ActivityItem[];
 }
 
@@ -628,6 +657,16 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
   const dispatch = useCallback((a: Action) => {
     localDispatch(a);
     channel.current?.post(a);
+  }, []);
+
+  // Lo que mueve existencias: el servidor lo aprueba primero. Sin servidor no se hace (el celular no es la caja).
+  const send = useCallback(async (a: Action): Promise<SendResult> => {
+    if (!channel.current || !connectedRef.current) {
+      return { ok: false, status: 0, body: { code: 'sin-conexion', message: 'Sin conexión con la tienda. Revisa la conexión e intenta de nuevo.' } };
+    }
+    const r = await channel.current.send(a);
+    if (r.ok && !r.offline) localDispatch(a);
+    return r;
   }, []);
 
   useEffect(() => write(DATA_KEY, data), [data]);
@@ -867,13 +906,16 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
   );
 
   const advanceOrder = useCallback(
-    (id: string) => {
+    async (id: string): Promise<Outcome<null>> => {
       const o = dataRef.current.orders.find((x) => x.id === id);
-      if (!o || o.issue) return;
-      dispatch({ type: 'ORDER_ADVANCE', id, from: o.status, at: Date.now() });
+      if (!o || o.issue) return { ok: false, message: 'Este pedido está esperando al cliente.' };
+      if (o.online && !isPaidOnline(o)) return { ok: false, code: 'pago-pendiente', message: 'El pago de este pedido todavía no se confirma.' };
+      const r = await send({ type: 'ORDER_ADVANCE', id, from: o.status, at: Date.now() });
+      if (!r.ok) return refused(r, 'No se pudo cambiar el pedido.');
       log({ kind: 'pedido', title: `${o.folio} · ${o.customer.name}`, detail: o.status === 'pendiente' ? 'Empezaste a prepararlo' : 'Lo marcaste como listo para recoger' });
+      return { ok: true, value: null };
     },
-    [dispatch, log],
+    [send, log],
   );
 
   const reportShortage = useCallback(
@@ -899,11 +941,15 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
 
   // Entregar y cobrar desde el celular: la venta es la misma que haría la caja, una sola vez por pedido
   const deliverOrder = useCallback(
-    (id: string, method: CashMethod, received: number, pickupCode: string) => {
+    async (id: string, method: CashMethod, received: number, pickupCode: string): Promise<Outcome<Sale>> => {
       const s = dataRef.current;
       const o = s.orders.find((x) => x.id === id);
-      if (!o || o.issue || o.status !== 'listo') return s.sales.find((x) => x.orderId === id) ?? null;
-      if (o.pickupCode && o.pickupCode !== pickupCode) return null;
+      const done = s.sales.find((x) => x.orderId === id);
+      if (!o || o.issue || o.status !== 'listo') return done ? { ok: true, value: done } : { ok: false, message: 'Este pedido no está listo para entregarse.' };
+      if (o.pickupCode && o.pickupCode !== pickupCode) return { ok: false, code: 'codigo-incorrecto', message: 'El código no coincide.' };
+      if (isPaidOnline(o) !== (method === 'en_linea')) {
+        return { ok: false, code: 'metodo-pago', message: isPaidOnline(o) ? 'Este pedido ya está pagado en línea: no se cobra.' : 'Este pedido se paga al recoger.' };
+      }
       const folio = Math.max(...s.sales.map((x) => x.folio), 1000) + 1;
       const sale: Sale = {
         id: `pedido-${o.id}`,
@@ -919,11 +965,16 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
         orderId: o.id,
         orderFolio: o.folio,
       };
-      dispatch({ type: 'ORDER_DELIVER', id, sale, payment: { method, received: method === 'efectivo' ? received : o.total }, pickupCode });
-      log({ kind: 'pedido', title: `${o.folio} · ${o.customer.name}`, detail: `Entregado y cobrado · ${money(o.total)} (${PAYMENT_LABEL[method].toLowerCase()})` });
-      return sale;
+      const r = await send({ type: 'ORDER_DELIVER', id, sale, payment: { method, received: method === 'efectivo' ? received : o.total }, pickupCode });
+      if (!r.ok) return refused(r, 'No se pudo entregar el pedido.');
+      log({
+        kind: 'pedido',
+        title: `${o.folio} · ${o.customer.name}`,
+        detail: method === 'en_linea' ? `Entregado · ya estaba pagado en línea (${money(o.total)})` : `Entregado y cobrado · ${money(o.total)} (${PAYMENT_LABEL[method].toLowerCase()})`,
+      });
+      return { ok: true, value: sale };
     },
-    [dispatch, employee, log],
+    [send, employee, log],
   );
   const findByBarcode = useCallback((code: string) => viewRef.current.products.find((p) => p.barcode === code.trim()), []);
   const movementsFor = useCallback(

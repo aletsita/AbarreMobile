@@ -24,6 +24,8 @@
 .mo-flag.is-waiting { background: var(--t-surface); color: var(--t-warning-text); }
 .mo-flag.is-warn { background: var(--t-danger-bg); color: var(--ion-color-danger); }
 .mo-flag.is-edited { background: var(--t-primary-bg); color: var(--ion-color-primary); }
+.mo-flag.is-paid { background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.mo-flag.is-cash { background: var(--t-surface); color: var(--t-muted); }
 .mo-act { margin: 4px 0 0; min-height: 46px; font-weight: 650; }
 
 .mo-done { margin: 0; padding: 0; list-style: none; border: 1px solid var(--t-border); border-radius: var(--t-radius); background: var(--t-surface); overflow: hidden; }
@@ -78,3 +80,7 @@
 .dl-change.is-short { background: var(--t-danger-bg); color: var(--ion-color-danger); }
 .dl-change strong { font-size: 1.3rem; }
 .mo-problem { margin: 0; min-height: 40px; font-weight: 650; }
+
+/* Pedido pagado en la app: no se cobra al entregar */
+.dl-paid { display: flex; align-items: center; gap: 10px; margin: 0; padding: 14px; border-radius: var(--t-radius-sm); background: var(--t-success-bg); color: var(--ion-color-success-shade); font-weight: 700; }
+.dl-paid ion-icon { flex: none; font-size: 22px; }
