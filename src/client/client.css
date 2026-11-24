@@ -449,3 +449,10 @@
 .cl-pay-ok { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; border-radius: var(--t-radius-sm); background: var(--t-success-bg); color: var(--ion-color-success-shade); }
 .cl-pay-ok ion-icon { flex: none; font-size: 22px; }
 .cl-created-icon.is-pay { background: var(--t-warning-bg); color: var(--t-warning-text); }
+
+/* Pantalla «Pagar pedido»: el formulario lo pinta Stripe dentro de .cl-paybox */
+.cl-paybox-head { display: grid; gap: 4px; text-align: center; }
+.cl-paybox-head strong { font-size: 2rem; }
+.cl-paybox-safe { display: inline-flex; gap: 6px; align-items: center; justify-content: center; font-size: 0.85rem; }
+.cl-paybox { min-height: 420px; border-radius: 16px; overflow: hidden; background: #fff; }
+.cl-paybox-wait { display: grid; justify-items: center; gap: 10px; padding: 32px 0; color: var(--ion-color-medium); }

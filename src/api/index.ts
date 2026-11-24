@@ -54,7 +54,7 @@ export const api = {
   cancelOrder: (id: string) => call<Order>('POST', `/pedidos/${encodeURIComponent(id)}/cancelar`),
   // Reintentar el pago: si la sesión anterior sigue abierta regresa la misma (no se cobra dos veces)
   payOrder: (id: string) => call<Order>('POST', `/pedidos/${encodeURIComponent(id)}/pagar`),
-  // Crea el pedido sin pagar junto con su página de pago (Order.paymentUrl). 409 → ApiError con details: OrderConflict
+  // Crea el pedido sin pagar junto con su sesión de pago (Order.paymentClientSecret). 409 → ApiError con details: OrderConflict
   createOrder: (order: NewOrder, idempotencyKey: string) =>
     call<Order>('POST', '/pedidos', { body: order, headers: { 'Idempotency-Key': idempotencyKey } }),
 

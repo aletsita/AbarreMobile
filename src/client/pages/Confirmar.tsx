@@ -10,7 +10,6 @@ import { useOnline } from '../../lib/online';
 import { useCart } from '../lib/cart';
 import { useCatalog } from '../lib/catalog';
 import { useOrders } from '../lib/orders';
-import { openPayment } from '../lib/payment';
 import { StoreClosed } from '../components/ui';
 
 function changeText(c: OrderChange) {
@@ -56,9 +55,8 @@ export default function Confirmar() {
       );
       cart.clear();
       void catalog.refresh();
-      // El monto lo calculó el servidor. La tarjeta se escribe en la página de Stripe, no en la app.
-      if (order.paymentUrl) openPayment(order.paymentUrl);
-      router.push(`/cliente/pedido-creado/${order.id}`, 'root', 'replace');
+      // El monto lo calculó el servidor. La tarjeta se escribe en el recuadro de Stripe de la pantalla de pago.
+      router.push(`/cliente/pagar/${order.id}`, 'root', 'replace');
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && (e.details as OrderConflict | undefined)?.code === 'pedido-cambio') {
         const conflict = e.details as OrderConflict;

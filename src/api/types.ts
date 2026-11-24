@@ -91,8 +91,8 @@ export interface Order {
   pickupCode?: string;
   // Sin `payment`: pedido de antes del pago en línea, se paga al recoger
   payment?: OrderPayment;
-  // Página de pago del proveedor, mientras falta pagar
-  paymentUrl?: string;
+  // Secreto de la sesión de pago embebida, mientras falta pagar (solo lo recibe el dueño del pedido)
+  paymentClientSecret?: string;
   cancel?: OrderCancel;
   // La tienda avisó que se agotaron estos productos: el pedido sigue en pie y espera a que el cliente
   // los cambie por otros, los quite o cancele el pedido

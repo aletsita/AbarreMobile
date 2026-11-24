@@ -1,11 +1,10 @@
-import { IonButton, IonIcon, IonSpinner, useIonToast } from '@ionic/react';
+import { IonButton, IonIcon, IonSpinner, useIonRouter, useIonToast } from '@ionic/react';
 import { alertCircleOutline, cardOutline, checkmarkCircle, refreshOutline, returnDownBackOutline } from 'ionicons/icons';
 import { useState } from 'react';
 import { errorMessage } from '../../api/errors';
 import { PAYMENT_STATUS_LABEL, type Order } from '../../api/types';
 import { money } from '../../data/models';
 import { useOrders } from '../lib/orders';
-import { openPayment } from '../lib/payment';
 
 // Etiqueta corta para listas: "Pagado", "Pago pendiente"…
 export function PaymentChip({ order }: { order: Order }) {
@@ -17,6 +16,7 @@ export function PaymentChip({ order }: { order: Order }) {
 // solo la muestra, se actualiza en vivo y deja abrir o reintentar el pago.
 export function PaymentStatus({ order }: { order: Order }) {
   const { pay } = useOrders();
+  const router = useIonRouter();
   const [toast] = useIonToast();
   const [busy, setBusy] = useState(false);
   const p = order.payment;
@@ -26,6 +26,7 @@ export function PaymentStatus({ order }: { order: Order }) {
     setBusy(true);
     try {
       await pay(order.id);
+      router.push(`/cliente/pagar/${order.id}`);
     } catch (e) {
       void toast({ message: errorMessage(e, 'No pudimos abrir el pago.'), duration: 5000, color: 'danger', position: 'top', cssClass: 'toast-app' });
     } finally {
@@ -41,12 +42,12 @@ export function PaymentStatus({ order }: { order: Order }) {
             <IonSpinner name="crescent" />
             <div>
               <h2>Esperando tu pago</h2>
-              <p>Paga con tarjeta en la página segura de Stripe. Al terminar regresa a la app: la confirmación llega sola en unos segundos.</p>
+              <p>Paga con tarjeta aquí mismo, en el recuadro seguro de Stripe. Si ya pagaste, la confirmación llega sola en unos segundos.</p>
             </div>
           </div>
-          <IonButton expand="block" className="btn-lg" disabled={busy} onClick={() => (order.paymentUrl ? openPayment(order.paymentUrl) : void retry())}>
+          <IonButton expand="block" className="btn-lg" routerLink={`/cliente/pagar/${order.id}`}>
             <IonIcon slot="start" icon={cardOutline} />
-            {order.paymentUrl ? `Pagar ${money(order.total)}` : 'Abrir el pago'}
+            Pagar {money(order.total)}
           </IonButton>
         </section>
       );

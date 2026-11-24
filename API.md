@@ -70,7 +70,7 @@ Cuando cambia la existencia o lo apartado (venta en caja, pedido, ajuste), el SS
 |---|---|
 | `GET /pedidos` | Mis pedidos |
 | `GET /pedidos/:id` | Uno de mis pedidos (`404` si es de otra persona) |
-| `POST /pedidos` | `201` el pedido **sin pagar** con su página de pago (`paymentUrl`). Llega a la caja hasta que se confirma el pago |
+| `POST /pedidos` | `201` el pedido **sin pagar** con el secreto de su sesión de pago embebida (`paymentClientSecret`). Llega a la caja hasta que se confirma el pago |
 | `POST /pedidos/:id/pagar` | Reintentar el pago. Si la sesión anterior sigue abierta regresa la misma (no se cobra dos veces); si venció o falló, abre otra. `409 sin-stock` si ya no alcanza |
 | `POST /pagos/webhook` | Solo para Stripe. Firma `Stripe-Signature` (HMAC-SHA256 con `STRIPE_WEBHOOK_SECRET`, tolerancia 5 min); sin firma válida, `400`. Un evento repetido responde `200 { repetido: true }` y no cambia nada |
 | `GET /pagos/regreso?estado=pagado\|cancelado` | Página a la que regresa Stripe; solo dice «regresa a la app» (la confirmación es el webhook) |
@@ -101,7 +101,7 @@ Pedido:
   history: { status, at }[],
   pickupCode?,                                                                     // solo con el pago confirmado
   payment?: { method: 'en_linea', status: 'pendiente_de_pago' | 'pagado' | 'fallido' | 'por_reembolsar' | 'reembolsado', amount?, paidAt? },
-  paymentUrl?,                                                                     // página de pago, mientras falta pagar
+  paymentClientSecret?,                                                            // sesión de pago embebida (Stripe), mientras falta pagar
   issue?: { missing: string[], at },                                               // se agotó algo: espera al cliente
   editedAt?,                                                                       // el cliente cambió productos
   cancel?: { reason: 'sin-existencia' | 'otro' | 'cliente', missing: string[], note?, at },  // missing: ids de los productos agotados

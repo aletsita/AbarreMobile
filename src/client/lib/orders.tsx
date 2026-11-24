@@ -7,7 +7,6 @@ import { errorMessage } from '../../api/errors';
 import { hasIssue, STATUS_LABEL, type NewOrder, type Order } from '../../api/types';
 import { useCatalog } from './catalog';
 import { notifyOrder } from './notify';
-import { openPayment } from './payment';
 
 interface OrdersState {
   orders: Order[];
@@ -82,14 +81,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const cancel = useCallback((id: string) => keep(api.cancelOrder(id)), [keep]);
   // Pedido cancelado por la tienda: el cliente lo pasa al historial
   const dismiss = useCallback((id: string) => keep(api.resolveOrder(id, 'quitar')), [keep]);
-  const pay = useCallback(
-    async (id: string) => {
-      const o = await keep(api.payOrder(id));
-      if (o.paymentUrl) openPayment(o.paymentUrl);
-      return o;
-    },
-    [keep],
-  );
+  // Sesión de pago: la abierta si sigue vigente o una nueva. La pantalla «Pagar pedido» la monta.
+  const pay = useCallback((id: string) => keep(api.payOrder(id)), [keep]);
 
   // Un cambio que llega en vivo: aviso dentro de la app y, si no está a la vista, en la barra de notificaciones
   const incoming = useCallback(
