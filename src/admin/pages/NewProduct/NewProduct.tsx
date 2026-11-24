@@ -6,10 +6,10 @@ import {
   IonPage,
   IonSpinner,
   IonToolbar,
-  useIonAlert,
   useIonRouter,
   useIonToast,
   useIonViewDidEnter,
+  useIonViewWillEnter,
   useIonViewWillLeave,
 } from '@ionic/react';
 import {
@@ -24,10 +24,11 @@ import {
   remove,
   sparklesOutline,
 } from 'ionicons/icons';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { autofillProduct } from '../../../application/lookupProduct';
 import { AppHeader } from '../../../components/AppHeader';
+import { useAppAlert } from '../../../components/AppAlert';
 import { MoneyField, TextField } from '../../../components/Form';
 import { generateInternalEan13 } from '../../../domain/ean13';
 import { PhotoPicker } from '../../components/PhotoPicker';
@@ -44,9 +45,11 @@ export default function NewProduct() {
   const { saveProduct, sendToRegister, findByBarcode, store, thisDevice } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
-  const [alert] = useIonAlert();
-  const fromScan = new URLSearchParams(search).get('codigo') ?? '';
+  const showAlert = useAppAlert();
+  const codeInUrl = () => (new URLSearchParams(search).get('codigo') ?? '').replace(/\s/g, '');
 
+  // Código con el que llegó desde el escáner (no registrado); se vuelve a leer cada vez que se entra
+  const [fromScan, setFromScan] = useState(codeInUrl);
   const [barcode, setBarcode] = useState(fromScan);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Abarrotes');
@@ -55,6 +58,8 @@ export default function NewProduct() {
   const [stock, setStock] = useState(1);
   const [photo, setPhoto] = useState<string>();
   const [tried, setTried] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   // Alta con la cámara: lee el código y trata de llenar el resto desde una base pública
   const [scanning, setScanning] = useState(false);
@@ -63,7 +68,36 @@ export default function NewProduct() {
   const [notice, setNotice] = useState<Notice>();
   const lookupId = useRef(0);
   useIonViewDidEnter(() => setVisible(true));
-  useIonViewWillLeave(() => setVisible(false));
+
+  // Ionic deja la pantalla montada entre visitas: el formulario se reinicia al entrar y al salir para no
+  // arrastrar el código, los datos autocompletados ni los errores de la vez anterior
+  const reset = (code: string) => {
+    lookupId.current++;
+    setFromScan(code);
+    setBarcode(code);
+    setName('');
+    setCategory('Abarrotes');
+    setCost('');
+    setPrice('');
+    setStock(1);
+    setPhoto(undefined);
+    setTried(false);
+    setScanning(false);
+    setLooking(false);
+    setNotice(undefined);
+    setSaving(false);
+    savingRef.current = false;
+  };
+  useIonViewWillEnter(() => {
+    const code = codeInUrl();
+    reset(code);
+    // Llegó desde el escáner con un código que no existe: se buscan sus datos
+    if (code && !findByBarcode(code)) void lookup(code);
+  }, [search]);
+  useIonViewWillLeave(() => {
+    setVisible(false);
+    reset('');
+  });
 
   const lookup = async (code: string) => {
     const id = ++lookupId.current;
@@ -100,23 +134,18 @@ export default function NewProduct() {
       lookupId.current++;
       setLooking(false);
       setNotice(undefined);
-      alert({
-        header: 'Ya está en tu inventario',
-        message: `El código ${code} es de ${existing.name}. ¿Quieres editarlo en lugar de darlo de alta otra vez?`,
-        buttons: [
-          { text: 'Cancelar', role: 'cancel' },
-          { text: 'Editar producto', handler: () => router.push(`/movil/producto/${existing.id}`, 'forward', 'replace') },
-        ],
-      });
+      void showAlert({
+        tone: 'info',
+        title: 'Ya está en tu inventario',
+        code,
+        message: `Este código es de ${existing.name}. Puedes editarlo en lugar de darlo de alta otra vez.`,
+        primary: 'Editar producto',
+        secondary: 'Cancelar',
+      }).then((edit) => edit && router.push(`/movil/producto/${existing.id}`, 'forward', 'replace'));
       return;
     }
     void lookup(code);
   };
-
-  // Llegó desde el escáner con un código que no existe: se buscan sus datos una vez
-  useEffect(() => {
-    if (fromScan && !findByBarcode(fromScan)) void lookup(fromScan);
-  }, []);
 
   const generateCode = () => {
     lookupId.current++;
@@ -136,9 +165,13 @@ export default function NewProduct() {
   const invalid = Boolean(errors.barcode || errors.name || errors.price);
   const margin = Number(price) - Number(cost);
 
-  const save = (toRegister: boolean) => {
+  const save = async (toRegister: boolean) => {
+    // Un solo guardado aunque se toque dos veces el botón
+    if (savingRef.current) return;
     setTried(true);
     if (invalid) return;
+    savingRef.current = true;
+    setSaving(true);
     const product: Product = {
       id: `p${uid()}`,
       name: name.trim(),
@@ -150,8 +183,22 @@ export default function NewProduct() {
       barcode: barcode.trim(),
       photo,
     };
-    const r = saveProduct(product, true);
-    if (toRegister) sendToRegister(product, 1);
+    let r: ReturnType<typeof saveProduct>;
+    try {
+      r = saveProduct(product, true);
+      if (toRegister) sendToRegister(product, 1);
+    } catch {
+      // No se guardó: el formulario se queda como está para corregir o reintentar
+      savingRef.current = false;
+      setSaving(false);
+      await showAlert({
+        tone: 'error',
+        title: 'No se guardó el producto',
+        message: 'Algo falló al guardarlo en el celular. Revisa los datos e inténtalo de nuevo.',
+        primary: 'Entendido',
+      });
+      return;
+    }
     const offline = r === 'pendiente';
     toast({
       message: offline
@@ -164,8 +211,9 @@ export default function NewProduct() {
       position: 'top',
       cssClass: 'toast-app',
     });
-    if (router.canGoBack()) router.goBack();
-    else router.push('/movil/escaner', 'back');
+    // Formulario limpio y al inventario, donde ya aparece el producto nuevo
+    reset('');
+    router.push('/movil/inventario', 'root', 'replace');
   };
 
   return (
@@ -280,11 +328,11 @@ export default function NewProduct() {
 
       <IonFooter className="action-footer ion-no-border">
         <IonToolbar>
-          <IonButton expand="block" className="btn-xl" onClick={() => save(false)}>
-            Guardar producto
+          <IonButton expand="block" className="btn-xl" onClick={() => void save(false)} disabled={saving}>
+            {saving ? <IonSpinner name="crescent" /> : 'Guardar producto'}
           </IonButton>
           {thisDevice && (
-            <IonButton expand="block" fill="clear" color="secondary" className="btn-lg np-only" onClick={() => save(true)}>
+            <IonButton expand="block" fill="clear" color="secondary" className="btn-lg np-only" onClick={() => void save(true)} disabled={saving}>
               <IonIcon slot="start" icon={paperPlaneOutline} />
               Guardar y enviar a la caja
             </IonButton>

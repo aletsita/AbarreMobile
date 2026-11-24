@@ -1,4 +1,5 @@
-import { IonButton, IonContent, IonIcon, IonLabel, IonPage, IonSegment, IonSegmentButton, useIonAlert, useIonRouter } from '@ionic/react';
+import { IonButton, IonContent, IonIcon, IonLabel, IonPage, IonSegment, IonSegmentButton, useIonRouter } from '@ionic/react';
+import { useAppAlert } from '../../../components/AppAlert';
 import {
   checkmarkCircleOutline,
   contrastOutline,
@@ -29,35 +30,30 @@ const installed = Capacitor.isNativePlatform();
 export default function Settings() {
   const { store, thisDevice, unlink, isLive, online, server, serverStatus } = useApp();
   const router = useIonRouter();
-  const [alert] = useIonAlert();
+  const showAlert = useAppAlert();
   const [theme, setTheme] = useThemeMode();
   const { session, logout } = useSession();
 
   const confirmLogout = () =>
-    alert({
-      header: '¿Cerrar sesión?',
+    void showAlert({
+      tone: 'warning',
+      title: '¿Cerrar sesión?',
       message: 'El celular sigue vinculado con la caja. Para volver a usarlo, inicia sesión otra vez.',
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Cerrar sesión', role: 'destructive', handler: () => void logout() },
-      ],
-    });
+      primary: { text: 'Cerrar sesión', danger: true },
+      secondary: 'Cancelar',
+    }).then((ok) => ok && void logout());
 
   const confirmUnlink = () =>
-    alert({
-      header: '¿Desvincular este celular?',
+    void showAlert({
+      tone: 'warning',
+      title: '¿Desvincular este celular?',
       message: `Dejará de enviar productos a ${store.register}. Para volver a usarlo tendrás que vincularlo de nuevo.`,
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Desvincular',
-          role: 'destructive',
-          handler: () => {
-            unlink();
-            router.push('/movil/vincular');
-          },
-        },
-      ],
+      primary: { text: 'Desvincular', danger: true },
+      secondary: 'Cancelar',
+    }).then((ok) => {
+      if (!ok) return;
+      unlink();
+      router.push('/movil/vincular');
     });
 
   const registerLive = online && isLive('panel');

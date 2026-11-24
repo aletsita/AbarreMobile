@@ -1,7 +1,8 @@
-import { IonButton, IonContent, IonIcon, IonModal, IonPage, IonSearchbar, useIonAlert, useIonRouter } from '@ionic/react';
+import { IonButton, IonContent, IonIcon, IonModal, IonPage, IonSearchbar, useIonRouter } from '@ionic/react';
 import { addOutline, alertCircleOutline, chevronForward, closeOutline, cubeOutline, scanOutline, trendingDownOutline } from 'ionicons/icons';
 import { useMemo, useState } from 'react';
 import { AppHeader } from '../../../components/AppHeader';
+import { useAppAlert } from '../../../components/AppAlert';
 import { EmptyState } from '../../../components/EmptyState';
 import { ProductThumb } from '../../../components/ProductThumb';
 import { money, normalize, stockLevel, type StockLevel } from '../../../data/models';
@@ -25,7 +26,7 @@ const FILTERS: { id: Filter; label: string }[] = [
 export default function Inventory() {
   const { products, findByBarcode } = useApp();
   const router = useIonRouter();
-  const [alert] = useIonAlert();
+  const showAlert = useAppAlert();
   const [text, setText] = useState('');
   const [filter, setFilter] = useState<Filter>('todos');
   const [scanning, setScanning] = useState(false);
@@ -52,21 +53,22 @@ export default function Inventory() {
       open(p);
       return;
     }
+    if (asking) return;
     setAsking(true);
-    alert({
-      header: 'Código no registrado',
-      message: `El código ${code} no está en tu inventario. ¿Quieres darlo de alta?`,
-      buttons: [
-        { text: 'Seguir escaneando', role: 'cancel' },
-        {
-          text: 'Dar de alta',
-          handler: () => {
-            setScanning(false);
-            create(code);
-          },
-        },
-      ],
-      onDidDismiss: () => setAsking(false),
+    void showAlert({
+      tone: 'warning',
+      title: 'Código no registrado',
+      code,
+      message: 'Este producto aún no está en tu inventario.',
+      primary: 'Dar de alta',
+      secondary: 'Seguir escaneando',
+    }).then((ok) => {
+      // La cámara se cierra antes de quitar la pausa para que no vuelva a leer el código al irse
+      if (ok) {
+        setScanning(false);
+        create(code);
+      }
+      setAsking(false);
     });
   };
 

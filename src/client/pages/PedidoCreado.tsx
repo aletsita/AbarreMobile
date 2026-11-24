@@ -1,4 +1,5 @@
-import { IonButton, IonContent, IonIcon, IonPage, useIonAlert, useIonToast } from '@ionic/react';
+import { IonButton, IonContent, IonIcon, IonPage, useIonToast } from '@ionic/react';
+import { useAppAlert } from '../../components/AppAlert';
 import { checkmarkCircle } from 'ionicons/icons';
 import { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
@@ -16,7 +17,7 @@ export default function PedidoCreado() {
   const { id } = useParams<{ id: string }>();
   const { orders } = useOrders();
   const order = orders.find((o) => o.id === id);
-  const [alert] = useIonAlert();
+  const showAlert = useAppAlert();
   const [toast] = useIonToast();
   const asked = useRef(false);
 
@@ -29,30 +30,24 @@ export default function PedidoCreado() {
     void (async () => {
       if ((await notifyPermission()) !== 'prompt' || (await alreadyAsked())) return;
       await new Promise((r) => setTimeout(r, 700));
-      void alert({
-        header: '¿Te avisamos cuando esté listo?',
+      const yes = await showAlert({
+        tone: 'info',
+        title: '¿Te avisamos cuando esté listo?',
         message: 'Te mandamos una notificación cuando la tienda prepare tu pedido y cuando puedas pasar a recogerlo. Nada más.',
-        backdropDismiss: false,
-        buttons: [
-          { text: 'Ahora no', role: 'cancel', handler: () => void declineNotify() },
-          {
-            text: 'Sí, avisarme',
-            handler: () => {
-              void requestNotify().then((p) => {
-                if (p === 'denied') {
-                  void toast({
-                    message: 'No recibirás avisos. Puedes activarlos en Ajustes del teléfono › Apps › Abarré › Notificaciones. Mientras, revisa «Mis pedidos».',
-                    duration: 6000,
-                    color: 'warning',
-                    position: 'top',
-                    cssClass: 'toast-app',
-                  });
-                }
-              });
-            },
-          },
-        ],
+        primary: 'Sí, avisarme',
+        secondary: 'Ahora no',
       });
+      if (!yes) return void declineNotify();
+      const p = await requestNotify();
+      if (p === 'denied') {
+        void toast({
+          message: 'No recibirás avisos. Puedes activarlos en Ajustes del teléfono › Apps › Abarré › Notificaciones. Mientras, revisa «Mis pedidos».',
+          duration: 6000,
+          color: 'warning',
+          position: 'top',
+          cssClass: 'toast-app',
+        });
+      }
     })();
   }, [order?.id, order?.payment?.status]);
 
