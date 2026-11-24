@@ -9,7 +9,6 @@ import {
   IonSegmentButton,
   IonToggle,
   IonToolbar,
-  useIonActionSheet,
   useIonAlert,
   useIonRouter,
   useIonToast,
@@ -22,7 +21,6 @@ import {
   archiveOutline,
   cartOutline,
   checkmarkDone,
-  chevronDown,
   chevronForward,
   linkOutline,
   personOutline,
@@ -32,7 +30,7 @@ import {
   searchOutline,
   trashOutline,
 } from 'ionicons/icons';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { AppHeader } from '../../../components/AppHeader';
 import { BarcodeSearch } from '../../components/BarcodeSearch';
 import { EmptyState } from '../../../components/EmptyState';
@@ -69,21 +67,21 @@ export function SentPill({ status }: { status: SentView['status'] }) {
   return <span className={`status-pill st-${status}`}>{STATUS_LABEL[status]}</span>;
 }
 
-// Cuenta de la caja a la que este celular manda lo que escanea; se recuerda entre visitas
-const TARGET_KEY = 'tendero.cuentaDestino';
-function readTarget() {
-  try {
-    return localStorage.getItem(TARGET_KEY);
-  } catch {
-    return null;
-  }
-}
-function writeTarget(id: string) {
-  try {
-    localStorage.setItem(TARGET_KEY, id);
-  } catch {
-    /* almacenamiento bloqueado */
-  }
+// Nombre de las cuentas de la caja (con su cliente) y a cuál fue cada envío, para la pantalla y el historial
+export function useAccountLabels() {
+  const { accounts, customers } = useApp();
+  const accountLabel = (a: { name: string; customerId: string | null }) => {
+    const c = a.customerId ? customers.find((x) => x.id === a.customerId) : undefined;
+    return c && c.name !== a.name ? `${a.name} · ${c.name}` : a.name;
+  };
+  // Si la cuenta sigue abierta se muestra con su cliente; si ya se cobró, el nombre que tenía
+  const sentTo = (s: SentView) => {
+    const open = s.accountId ? accounts.find((a) => a.id === s.accountId) : undefined;
+    if (open) return accountLabel(open);
+    if (s.accountName) return s.accountName;
+    return s.status === 'pendiente' || s.status === 'subiendo' ? 'la cuenta en pantalla' : undefined;
+  };
+  return { accountLabel, sentTo };
 }
 
 export default function Scanner() {
@@ -91,8 +89,6 @@ export default function Scanner() {
   const router = useIonRouter();
   const [toast] = useIonToast();
   const [alert] = useIonAlert();
-  const [actionSheet] = useIonActionSheet();
-  const [targetId, setTargetId] = useState<string | null>(readTarget);
   const [mode, setMode] = useState<ScanMode>('vender');
   const [batchMode, setBatchMode] = useState(false);
   const [batch, setBatch] = useState<BatchLine[]>([]);
@@ -108,44 +104,12 @@ export default function Scanner() {
 
   const newProduct = (code?: string) => router.push(code ? `/movil/producto-nuevo?codigo=${encodeURIComponent(code)}` : '/movil/producto-nuevo');
 
-  // Si la cuenta elegida ya se cerró en la caja, hay que elegir otra antes de seguir vendiendo
-  const target = accounts.find((a) => a.id === targetId);
-  const accountLabel = (a: { name: string; customerId: string | null }) => {
-    const c = a.customerId ? customers.find((x) => x.id === a.customerId) : undefined;
-    return c && c.name !== a.name ? `${a.name} · ${c.name}` : a.name;
-  };
-  const needsTarget = mode === 'vender' && !!thisDevice && !target;
-
-  const chooseTarget = () =>
-    actionSheet({
-      header: '¿A qué cuenta mandas lo que escaneas?',
-      buttons: [
-        ...accounts.map((a) => ({
-          text: `${a.id === targetId ? '✓ ' : ''}${accountLabel(a)} · ${a.count ? `${a.count} art.` : 'vacía'}${a.active ? ' (en pantalla)' : ''}`,
-          handler: () => {
-            setTargetId(a.id);
-            writeTarget(a.id);
-          },
-        })),
-        { text: 'Cancelar', role: 'cancel' },
-      ],
-    });
-
-  // La primera vez (o si su cuenta se cerró) se pide elegir antes de escanear
-  const asked = useRef(false);
-  useEffect(() => {
-    if (needsTarget && visible && !asked.current) {
-      asked.current = true;
-      void chooseTarget();
-    }
-    if (!needsTarget) asked.current = false;
-  }, [needsTarget, visible]);
+  // Lo que se manda cae en la cuenta que la caja tiene en pantalla; aquí solo se muestra cuál es
+  const { accountLabel, sentTo } = useAccountLabels();
+  const onScreen = accounts.find((a) => a.active);
+  const onScreenCustomer = onScreen?.customerId ? customers.find((c) => c.id === onScreen.customerId) : undefined;
 
   const handleProduct = (p: ProductView, qty = 1) => {
-    if (needsTarget) {
-      void chooseTarget();
-      return;
-    }
     setLastScanned(p.name);
     if (mode === 'inventario' && batchMode) {
       setBatch((b) =>
@@ -204,47 +168,44 @@ export default function Scanner() {
   const recent = mine.slice(0, 4);
   const batchPieces = batch.reduce((n, l) => n + l.qty, 0);
   const registerLive = isLive('panel');
-  // A dónde van los envíos: la cuenta elegida y, si tiene, su cliente
-  const customer = target?.customerId ? customers.find((c) => c.id === target.customerId) : undefined;
 
   return (
     <IonPage>
       <AppHeader title="Escáner">
         <IonToolbar className="scan-tools">
           {!thisDevice ? (
-            <button type="button" className="scan-link is-off" onClick={() => router.push('/movil/vincular')}>
-              <IonIcon icon={linkOutline} />
-              Sin vincular · <strong>Vincular con la caja</strong>
+            <button type="button" className="scan-status is-off" onClick={() => router.push('/movil/vincular')}>
+              <span className="scan-status-icon"><IonIcon icon={linkOutline} aria-hidden="true" /></span>
+              <span className="scan-status-text">
+                <strong>Sin vincular</strong>
+                <small>Toca para vincular con la caja</small>
+              </span>
+              <IonIcon icon={chevronForward} className="scan-status-go" aria-hidden="true" />
             </button>
           ) : (
-            <div className={`scan-link ${!online ? 'is-wait' : registerLive ? 'is-on' : 'is-wait'}`}>
-              <span className="scan-link-dot" aria-hidden="true" />
-              {!online ? (
-                <span>Sin conexión con <strong>{store.register}</strong></span>
-              ) : registerLive ? (
-                <span>Conectado a <strong>{store.register}</strong></span>
-              ) : (
-                <span><strong>{store.register}</strong> cerrada · los envíos aparecerán al abrirla</span>
-              )}
+            <div className={`scan-status ${!online || !registerLive ? 'is-wait' : 'is-on'}`}>
+              <span className="scan-status-icon">
+                <IonIcon icon={onScreenCustomer ? personOutline : receiptOutline} aria-hidden="true" />
+              </span>
+              <span className="scan-status-text">
+                <small>
+                  <span className="scan-link-dot" aria-hidden="true" />
+                  {!online ? `Sin conexión con ${store.register}` : registerLive ? `Conectado a ${store.register}` : `${store.register} cerrada`}
+                </small>
+                {mode === 'vender' ? (
+                  <strong>
+                    {onScreen ? (
+                      <>Enviando a {onScreenCustomer ? onScreenCustomer.name : onScreen.name}</>
+                    ) : (
+                      'Enviando a la cuenta en pantalla'
+                    )}
+                  </strong>
+                ) : (
+                  <strong>{mode === 'inventario' ? 'Entradas de inventario' : 'Consulta de precios'}</strong>
+                )}
+              </span>
+              {mode === 'vender' && onScreen && onScreen.count > 0 && <span className="scan-status-count">{onScreen.count} art.</span>}
             </div>
-          )}
-          {thisDevice && (
-            <button type="button" className={`scan-account ${target ? '' : 'is-missing'}`} onClick={() => void chooseTarget()} aria-label="Cambiar la cuenta a la que se envía">
-              <IonIcon icon={customer ? personOutline : receiptOutline} aria-hidden="true" />
-              {!target ? (
-                <span><strong>Elige a qué cuenta enviar</strong></span>
-              ) : customer ? (
-                <span>
-                  Enviando a <strong>{customer.name}</strong>
-                  {target.name !== customer.name && <> · {target.name}</>}
-                </span>
-              ) : (
-                <span>
-                  Enviando a <strong>{target.name}</strong>
-                </span>
-              )}
-              <span className="scan-account-change">Cambiar <IonIcon icon={chevronDown} /></span>
-            </button>
           )}
           <IonSegment value={mode} onIonChange={(e) => setMode(e.detail.value as ScanMode)} className="scan-modes" aria-label="Modo del escáner">
             <IonSegmentButton value="vender" layout="icon-start">
@@ -267,21 +228,13 @@ export default function Scanner() {
         <div className={`scan-layout ${typing ? 'is-typing' : ''}`}>
           <div className="scan-camera">
             <ScannerView
-              enabled={visible && !typing && !needsTarget}
+              enabled={visible && !typing}
               paused={!!current || asking}
               onCode={handleCode}
               lastScanned={lastScanned}
-              hint={mode === 'vender' && target ? `Se agrega a ${target.name}` : MODE_HINT[mode]}
+              hint={mode === 'vender' && onScreen ? `Se agrega a ${accountLabel(onScreen)}` : MODE_HINT[mode]}
             />
-            {needsTarget && (
-              <div className="scan-need-account">
-                <IonIcon icon={receiptOutline} />
-                <strong>Primero elige la cuenta</strong>
-                <span>Lo que escanees se agrega a esa cuenta en {store.register}.</span>
-                <IonButton onClick={() => void chooseTarget()}>Elegir cuenta</IonButton>
-              </div>
-            )}
-            <button type="button" className="scanner-simulate" onClick={simulateScan} disabled={!!current || asking || needsTarget}>
+            <button type="button" className="scanner-simulate" onClick={simulateScan} disabled={!!current || asking}>
               <IonIcon icon={scanOutline} />
               Simular escaneo
             </button>
@@ -302,7 +255,7 @@ export default function Scanner() {
             {mode === 'vender' && (
               <>
                 <div className="scan-panel-head">
-                  <h2>Enviado a {store.register}</h2>
+                  <h2>Últimos envíos</h2>
                   {mine.length > 0 && (
                     <button type="button" className="scan-more" onClick={() => router.push('/movil/enviados')}>
                       Ver todo <IonIcon icon={chevronForward} />
@@ -318,7 +271,10 @@ export default function Scanner() {
                         <ProductThumb product={s.product} size={38} />
                         <span className="scan-list-name">
                           <strong>{s.qty} × {s.product.name}</strong>
-                          <SentPill status={s.status} />
+                          <span className="scan-list-meta">
+                            <SentPill status={s.status} />
+                            {sentTo(s) && <span className="scan-list-to">→ {sentTo(s)}</span>}
+                          </span>
                         </span>
                         <span className="money">{money(s.qty * s.product.price)}</span>
                       </li>
@@ -401,7 +357,7 @@ export default function Scanner() {
         product={current}
         mode={mode}
         initialQty={currentQty}
-        target={target && { id: target.id, name: accountLabel(target) }}
+        destination={onScreen && accountLabel(onScreen)}
         onClose={() => setCurrent(undefined)}
       />
     </IonPage>

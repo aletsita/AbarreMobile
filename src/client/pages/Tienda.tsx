@@ -162,7 +162,7 @@ export default function Tienda() {
           <article className="tn-banner is-pickup">
             <div className="tn-banner-text">
               <strong>Pide y recoge</strong>
-              <span>Arma tu pedido en la app y pásalo a recoger a la tienda. Pagas al recoger.</span>
+              <span>Arma tu pedido en la app, págalo en línea y pásalo a recoger a la tienda.</span>
               <button type="button" onClick={() => catalogStart.current?.scrollIntoView({ behavior: 'smooth' })}>
                 Pídelo ya <IonIcon icon={arrowForward} />
               </button>

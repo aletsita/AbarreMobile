@@ -8,7 +8,7 @@ import { SyncBadge } from '../../components/SyncBadge';
 import { SyncPendingChip } from '../../components/SyncPendingChip';
 import { useApp, type ActivityItem, type PendingItem } from '../../context/AppContext';
 import { money, shortDate, time } from '../../../data/models';
-import { SentPill } from '../Scanner/Scanner';
+import { SentPill, useAccountLabels } from '../Scanner/Scanner';
 import './Sent.css';
 
 type Section = 'envios' | 'productos' | 'pedidos';
@@ -52,6 +52,7 @@ function ActivityList({ items }: { items: ActivityItem[] }) {
 export default function Sent() {
   const { sent, removeSent, store, thisDevice, pending, activity } = useApp();
   const [toast] = useIonToast();
+  const { sentTo } = useAccountLabels();
   const [section, setSection] = useState<Section>('envios');
   const mine = thisDevice ? sent.filter((s) => s.deviceId === thisDevice.id) : [];
   const inRegister = mine.filter((s) => s.status === 'en-caja');
@@ -104,7 +105,7 @@ export default function Sent() {
               <>
                 <section className="card sent-summary">
                   <div>
-                    <span className="muted">En la cuenta de {store.register}</span>
+                    <span className="muted">Esperando cobro en {store.register}</span>
                     <strong className="money">{money(total)}</strong>
                   </div>
                   <span className="sent-count">{pieces} {pieces === 1 ? 'pieza' : 'piezas'}</span>
@@ -121,6 +122,11 @@ export default function Sent() {
                           <span className="muted sent-meta">
                             {time(new Date(s.at).toISOString())} <SentPill status={s.status} />
                           </span>
+                          {sentTo(s) && (
+                            <span className="sent-to">
+                              <IonIcon icon={receiptOutline} aria-hidden="true" /> {sentTo(s)}
+                            </span>
+                          )}
                         </span>
                         <span className="money sent-amount">{money(s.qty * s.product.price)}</span>
                         {(s.status === 'en-caja' || s.status === 'pendiente') && (

@@ -27,8 +27,8 @@ interface Props {
   product?: ProductView;
   mode: ScanMode;
   initialQty?: number;
-  // Cuenta de la caja a la que se manda en modo vender
-  target?: { id: string; name: string };
+  // Cuenta que la caja tiene en pantalla: ahí cae lo que se manda en modo vender (solo para mostrarla)
+  destination?: string;
   onClose: () => void;
 }
 
@@ -36,7 +36,7 @@ const MOVE_ICON: Record<MovementType, string> = { venta: arrowDown, entrada: arr
 const MOVE_LABEL: Record<MovementType, string> = { venta: 'Venta', entrada: 'Entrada', ajuste: 'Ajuste', alta: 'Alta' };
 const HEIGHTS: Record<ScanMode, number> = { vender: 0.52, inventario: 0.62, consultar: 0.92 };
 
-export function ScanResultSheet({ product, mode, initialQty = 1, target, onClose }: Props) {
+export function ScanResultSheet({ product, mode, initialQty = 1, destination, onClose }: Props) {
   const { sendToRegister, addStock, store, thisDevice, movementsFor, availableFor } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
@@ -73,8 +73,9 @@ export function ScanResultSheet({ product, mode, initialQty = 1, target, onClose
     if (!product || soldOut) return;
     const n = Math.min(qty, available);
     if (n < 1) return;
-    const r = sendToRegister(product, n, target?.id);
-    notify(`${n} × ${product.name} agregado a ${target?.name ?? store.register}`, r === 'pendiente');
+    // Sin cuenta elegida: la caja lo agrega a la cuenta que tenga en pantalla
+    const r = sendToRegister(product, n);
+    notify(`${n} × ${product.name} agregado a ${destination ?? store.register}`, r === 'pendiente');
     onClose();
   };
 
@@ -170,11 +171,19 @@ export function ScanResultSheet({ product, mode, initialQty = 1, target, onClose
             <div className="ss-actions">
               {thisDevice ? (
                 <>
-                  <IonButton expand="block" color="secondary" className="btn-xl" onClick={send} disabled={soldOut || !target}>
+                  <IonButton expand="block" color="secondary" className="btn-xl" onClick={send} disabled={soldOut}>
                     <IonIcon slot="start" icon={paperPlaneOutline} />
-                    {soldOut ? 'Sin stock' : `Agregar a ${target?.name ?? 'la cuenta'} · ${money(product.price * qty)}`}
+                    {soldOut ? 'Sin stock' : `Enviar a la caja · ${money(product.price * qty)}`}
                   </IonButton>
-                  {!soldOut && target && <p className="ss-dest">Se agrega a la cuenta <strong>{target.name}</strong> en {store.register}.</p>}
+                  {!soldOut && (
+                    <p className="ss-dest">
+                      {destination ? (
+                        <>Se agrega a <strong>{destination}</strong>, la cuenta en pantalla de {store.register}.</>
+                      ) : (
+                        <>Se agrega a la cuenta en pantalla de {store.register}.</>
+                      )}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>

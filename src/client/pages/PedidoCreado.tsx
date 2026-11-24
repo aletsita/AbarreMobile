@@ -1,10 +1,11 @@
 import { IonButton, IonContent, IonIcon, IonPage, useIonAlert, useIonToast } from '@ionic/react';
-import { checkmarkCircle, cardOutline } from 'ionicons/icons';
+import { checkmarkCircle } from 'ionicons/icons';
 import { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
+import { CheckoutSteps } from '../components/CheckoutSteps';
 import { PaymentStatus } from '../components/PaymentStatus';
 import { PickupCode } from '../components/PickupCode';
 import { StatusChip } from '../components/ui';
@@ -64,41 +65,38 @@ export default function PedidoCreado() {
         <div className="page-pad is-narrow">
           {order && paying ? (
             <div className="stack">
-              <section className="card cl-created">
-                <span className="cl-created-icon is-pay"><IonIcon icon={cardOutline} /></span>
-                <h1>Falta tu pago</h1>
-                <p className="muted">
-                  {order.items.reduce((n, i) => n + i.qty, 0)} piezas · <span className="money">{money(order.total)}</span>
-                </p>
-              </section>
-              <PaymentStatus order={order} />
+              <CheckoutSteps current={1} />
+              <PaymentStatus order={order} hero />
               <IonButton expand="block" fill="clear" className="btn-lg" routerLink="/cliente/pedidos" routerDirection="root">
                 Ver mis pedidos
               </IonButton>
             </div>
           ) : order ? (
-            <section className="card cl-created">
-              <span className="cl-created-icon"><IonIcon icon={checkmarkCircle} /></span>
-              <h1>{order.payment ? '¡Pago confirmado!' : '¡Recibimos tu pedido!'}</h1>
-              {order.folio && (
-                <p className="cl-folio">
-                  Folio <strong>{order.folio}</strong>
+            <div className="stack">
+              {order.payment && <CheckoutSteps current={2} />}
+              <section className="card cl-created">
+                <span className="cl-created-icon"><IonIcon icon={checkmarkCircle} /></span>
+                <h1>{order.payment ? '¡Pago confirmado!' : '¡Recibimos tu pedido!'}</h1>
+                {order.folio && (
+                  <p className="cl-folio">
+                    Folio <strong>{order.folio}</strong>
+                  </p>
+                )}
+                <StatusChip status={order.status} />
+                <p className="muted">
+                  {order.items.reduce((n, i) => n + i.qty, 0)} piezas · <span className="money">{money(order.total)}</span>
+                  {order.payment ? ' pagados en línea.' : ' a pagar al recoger en la tienda.'}
                 </p>
-              )}
-              <StatusChip status={order.status} />
-              <p className="muted">
-                {order.items.reduce((n, i) => n + i.qty, 0)} piezas · <span className="money">{money(order.total)}</span>
-                {order.payment ? ' pagados en línea.' : ' a pagar al recoger en la tienda.'}
-              </p>
-              {order.payment && <PickupCode order={order} />}
-              <p className="muted">Te avisaremos cuando cambie de estado. También puedes verlo en «Mis pedidos».</p>
-              <IonButton expand="block" className="btn-xl" routerLink={`/cliente/pedido/${order.id}`}>
-                Ver mi pedido
-              </IonButton>
-              <IonButton expand="block" fill="clear" className="btn-lg" routerLink="/cliente/tienda" routerDirection="root">
-                Seguir comprando
-              </IonButton>
-            </section>
+                {order.payment && <PickupCode order={order} />}
+                <p className="muted">Te avisaremos cuando cambie de estado. También puedes verlo en «Mis pedidos».</p>
+                <IonButton expand="block" className="btn-xl" routerLink={`/cliente/pedido/${order.id}`}>
+                  Ver mi pedido
+                </IonButton>
+                <IonButton expand="block" fill="clear" className="btn-lg" routerLink="/cliente/tienda" routerDirection="root">
+                  Seguir comprando
+                </IonButton>
+              </section>
+            </div>
           ) : (
             <EmptyState art="search" title="No encontramos ese pedido" action={<IonButton routerLink="/cliente/pedidos" routerDirection="root">Ver mis pedidos</IonButton>} />
           )}
