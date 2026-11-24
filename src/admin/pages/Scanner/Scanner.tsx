@@ -67,8 +67,25 @@ export function SentPill({ status }: { status: SentView['status'] }) {
   return <span className={`status-pill st-${status}`}>{STATUS_LABEL[status]}</span>;
 }
 
+// Nombre de las cuentas de la caja (con su cliente) y a cuál fue cada envío, para la pantalla y el historial
+export function useAccountLabels() {
+  const { accounts, customers } = useApp();
+  const accountLabel = (a: { name: string; customerId: string | null }) => {
+    const c = a.customerId ? customers.find((x) => x.id === a.customerId) : undefined;
+    return c && c.name !== a.name ? `${a.name} · ${c.name}` : a.name;
+  };
+  // Si la cuenta sigue abierta se muestra con su cliente; si ya se cobró, el nombre que tenía
+  const sentTo = (s: SentView) => {
+    const open = s.accountId ? accounts.find((a) => a.id === s.accountId) : undefined;
+    if (open) return accountLabel(open);
+    if (s.accountName) return s.accountName;
+    return s.status === 'pendiente' || s.status === 'subiendo' ? 'la cuenta en pantalla' : undefined;
+  };
+  return { accountLabel, sentTo };
+}
+
 export default function Scanner() {
-  const { products, sent, thisDevice, store, account, customers, addStock, findByBarcode, isLive, online } = useApp();
+  const { products, sent, thisDevice, store, accounts, customers, addStock, findByBarcode, isLive, online } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
   const [alert] = useIonAlert();
@@ -86,6 +103,11 @@ export default function Scanner() {
   useIonViewWillLeave(() => setVisible(false));
 
   const newProduct = (code?: string) => router.push(code ? `/movil/producto-nuevo?codigo=${encodeURIComponent(code)}` : '/movil/producto-nuevo');
+
+  // Lo que se manda cae en la cuenta que la caja tiene en pantalla; aquí solo se muestra cuál es
+  const { accountLabel, sentTo } = useAccountLabels();
+  const onScreen = accounts.find((a) => a.active);
+  const onScreenCustomer = onScreen?.customerId ? customers.find((c) => c.id === onScreen.customerId) : undefined;
 
   const handleProduct = (p: ProductView, qty = 1) => {
     setLastScanned(p.name);
@@ -146,43 +168,43 @@ export default function Scanner() {
   const recent = mine.slice(0, 4);
   const batchPieces = batch.reduce((n, l) => n + l.qty, 0);
   const registerLive = isLive('panel');
-  // A dónde van los envíos: la cuenta abierta en la caja y, si tiene, su cliente
-  const customer = account.customerId ? customers.find((c) => c.id === account.customerId) : undefined;
 
   return (
     <IonPage>
       <AppHeader title="Escáner">
         <IonToolbar className="scan-tools">
           {!thisDevice ? (
-            <button type="button" className="scan-link is-off" onClick={() => router.push('/movil/vincular')}>
-              <IonIcon icon={linkOutline} />
-              Sin vincular · <strong>Vincular con la caja</strong>
+            <button type="button" className="scan-status is-off" onClick={() => router.push('/movil/vincular')}>
+              <span className="scan-status-icon"><IonIcon icon={linkOutline} aria-hidden="true" /></span>
+              <span className="scan-status-text">
+                <strong>Sin vincular</strong>
+                <small>Toca para vincular con la caja</small>
+              </span>
+              <IonIcon icon={chevronForward} className="scan-status-go" aria-hidden="true" />
             </button>
           ) : (
-            <div className={`scan-link ${!online ? 'is-wait' : registerLive ? 'is-on' : 'is-wait'}`}>
-              <span className="scan-link-dot" aria-hidden="true" />
-              {!online ? (
-                <span>Sin conexión con <strong>{store.register}</strong></span>
-              ) : registerLive ? (
-                <span>Conectado a <strong>{store.register}</strong></span>
-              ) : (
-                <span><strong>{store.register}</strong> cerrada · los envíos aparecerán al abrirla</span>
-              )}
-            </div>
-          )}
-          {thisDevice && (
-            <div className="scan-account">
-              <IonIcon icon={customer ? personOutline : receiptOutline} aria-hidden="true" />
-              {customer ? (
-                <span>
-                  Cliente <strong>{customer.name}</strong>
-                  {account.name !== customer.name && <> · {account.name}</>}
-                </span>
-              ) : (
-                <span>
-                  Cuenta abierta: <strong>{account.name}</strong>
-                </span>
-              )}
+            <div className={`scan-status ${!online || !registerLive ? 'is-wait' : 'is-on'}`}>
+              <span className="scan-status-icon">
+                <IonIcon icon={onScreenCustomer ? personOutline : receiptOutline} aria-hidden="true" />
+              </span>
+              <span className="scan-status-text">
+                <small>
+                  <span className="scan-link-dot" aria-hidden="true" />
+                  {!online ? `Sin conexión con ${store.register}` : registerLive ? `Conectado a ${store.register}` : `${store.register} cerrada`}
+                </small>
+                {mode === 'vender' ? (
+                  <strong>
+                    {onScreen ? (
+                      <>Enviando a {onScreenCustomer ? onScreenCustomer.name : onScreen.name}</>
+                    ) : (
+                      'Enviando a la cuenta en pantalla'
+                    )}
+                  </strong>
+                ) : (
+                  <strong>{mode === 'inventario' ? 'Entradas de inventario' : 'Consulta de precios'}</strong>
+                )}
+              </span>
+              {mode === 'vender' && onScreen && onScreen.count > 0 && <span className="scan-status-count">{onScreen.count} art.</span>}
             </div>
           )}
           <IonSegment value={mode} onIonChange={(e) => setMode(e.detail.value as ScanMode)} className="scan-modes" aria-label="Modo del escáner">
@@ -210,7 +232,7 @@ export default function Scanner() {
               paused={!!current || asking}
               onCode={handleCode}
               lastScanned={lastScanned}
-              hint={MODE_HINT[mode]}
+              hint={mode === 'vender' && onScreen ? `Se agrega a ${accountLabel(onScreen)}` : MODE_HINT[mode]}
             />
             <button type="button" className="scanner-simulate" onClick={simulateScan} disabled={!!current || asking}>
               <IonIcon icon={scanOutline} />
@@ -233,7 +255,7 @@ export default function Scanner() {
             {mode === 'vender' && (
               <>
                 <div className="scan-panel-head">
-                  <h2>Enviado a {store.register}</h2>
+                  <h2>Últimos envíos</h2>
                   {mine.length > 0 && (
                     <button type="button" className="scan-more" onClick={() => router.push('/movil/enviados')}>
                       Ver todo <IonIcon icon={chevronForward} />
@@ -249,7 +271,10 @@ export default function Scanner() {
                         <ProductThumb product={s.product} size={38} />
                         <span className="scan-list-name">
                           <strong>{s.qty} × {s.product.name}</strong>
-                          <SentPill status={s.status} />
+                          <span className="scan-list-meta">
+                            <SentPill status={s.status} />
+                            {sentTo(s) && <span className="scan-list-to">→ {sentTo(s)}</span>}
+                          </span>
                         </span>
                         <span className="money">{money(s.qty * s.product.price)}</span>
                       </li>
@@ -328,7 +353,13 @@ export default function Scanner() {
         </IonFooter>
       )}
 
-      <ScanResultSheet product={current} mode={mode} initialQty={currentQty} onClose={() => setCurrent(undefined)} />
+      <ScanResultSheet
+        product={current}
+        mode={mode}
+        initialQty={currentQty}
+        destination={onScreen && accountLabel(onScreen)}
+        onClose={() => setCurrent(undefined)}
+      />
     </IonPage>
   );
 }

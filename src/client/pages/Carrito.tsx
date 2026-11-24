@@ -33,41 +33,61 @@ export default function Carrito() {
   } else {
     body = (
       <div className="stack">
-        <ul className="cl-lines card">
+        <div className="cl-cart-head">
+          <h1>Tu carrito</h1>
+          <span className="cl-cart-count">
+            {cart.count} {cart.count === 1 ? 'pieza' : 'piezas'}
+          </span>
+        </div>
+
+        <ul className="cl-cart-lines">
           {cart.lines.map((l) => (
-            <li key={l.productId}>
-              <ProductImage product={l} size={64} />
-              <div className="cl-line-info">
-                <strong>{l.name}</strong>
-                <span className="muted">{money(l.price)} c/u{l.qty >= l.stock && ' · máximo disponible'}</span>
-                <QtyStepper label={`Cantidad de ${l.name}`} value={l.qty} max={l.stock} onChange={(n) => cart.setQty(l.productId, n)} />
-              </div>
-              <div className="cl-line-end">
-                <span className="money">{money(l.price * l.qty)}</span>
-                <IonButton fill="clear" color="danger" size="small" onClick={() => cart.remove(l.productId)} aria-label={`Quitar ${l.name}`}>
-                  <IonIcon slot="icon-only" icon={trashOutline} />
-                </IonButton>
+            <li key={l.productId} className="card cl-cart-line">
+              <ProductImage product={l} size={72} />
+              <div className="cl-cart-info">
+                <div className="cl-cart-top">
+                  <strong>{l.name}</strong>
+                  <button type="button" className="cl-cart-remove" onClick={() => cart.remove(l.productId)} aria-label={`Quitar ${l.name}`}>
+                    <IonIcon icon={trashOutline} />
+                  </button>
+                </div>
+                <span className="muted">
+                  {money(l.price)} c/u{l.qty >= l.stock && <span className="cl-cart-max"> · máximo disponible</span>}
+                </span>
+                <div className="cl-cart-bottom">
+                  <QtyStepper label={`Cantidad de ${l.name}`} value={l.qty} max={l.stock} onChange={(n) => cart.setQty(l.productId, n)} />
+                  <span className="money cl-cart-sub">{money(l.price * l.qty)}</span>
+                </div>
               </div>
             </li>
           ))}
         </ul>
 
-        <AreaField
-          label="Nota para la tienda"
-          optional
-          rows={2}
-          maxLength={NOTE_MAX}
-          placeholder="Ej. Las tortillas bien calientitas"
-          value={cart.note}
-          onChange={cart.setNote}
-          hint={`${cart.note.length}/${NOTE_MAX}`}
-        />
+        <section className="card cl-cart-note">
+          <AreaField
+            label="Nota para la tienda"
+            optional
+            rows={2}
+            maxLength={NOTE_MAX}
+            placeholder="Ej. Las tortillas bien calientitas"
+            value={cart.note}
+            onChange={cart.setNote}
+            hint={`${cart.note.length}/${NOTE_MAX}`}
+          />
+        </section>
 
-        <div className="cl-total card">
-          <span>Total ({cart.count} {cart.count === 1 ? 'pieza' : 'piezas'})</span>
-          <strong className="money">{money(cart.total)}</strong>
-        </div>
-        <p className="cl-pay-note">Pagas al recoger en la tienda.</p>
+        <section className="card cl-cart-total">
+          <div>
+            <span>Productos</span>
+            <span>
+              {cart.count} {cart.count === 1 ? 'pieza' : 'piezas'}
+            </span>
+          </div>
+          <div className="is-total">
+            <span>Total</span>
+            <strong className="money">{money(cart.total)}</strong>
+          </div>
+        </section>
       </div>
     );
   }

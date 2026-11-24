@@ -2,7 +2,7 @@ import { IonIcon, IonSpinner } from '@ionic/react';
 import { cameraOutline, checkmarkCircle, closeOutline, flashlight, flashlightOutline, refreshOutline, scanOutline, videocamOffOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useScanner } from './scanner';
+import { nativeScanner, useScanner } from './scanner';
 import './ScannerView.css';
 
 interface Props {
@@ -122,7 +122,11 @@ export function ScannerView({ enabled, paused, onCode, hint = 'Apunta al código
             <>
               <IonIcon icon={videocamOffOutline} />
               <strong>Sin permiso para la cámara</strong>
-              <span>Permite el acceso en el navegador o escribe el código abajo.</span>
+              <span>
+                {nativeScanner
+                  ? 'Toca Reintentar para abrir los ajustes de la app y permitir la cámara, o escribe el código.'
+                  : 'Permite el acceso en el navegador o escribe el código.'}
+              </span>
               <button type="button" onClick={cam.retry}>
                 <IonIcon icon={refreshOutline} /> Reintentar
               </button>

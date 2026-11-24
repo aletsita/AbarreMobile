@@ -24,11 +24,24 @@ interface OrdersState {
   change: (id: string, items: { productId: string; qty: number }[]) => Promise<Order>;
   cancel: (id: string) => Promise<Order>;
   dismiss: (id: string) => Promise<Order>;
+  // Abre la página de pago del pedido (la misma si sigue vigente; si venció o falló, una nueva)
+  pay: (id: string) => Promise<Order>;
 }
 
 const Ctx = createContext<OrdersState | null>(null);
 
-const stateOf = (o: Order) => (hasIssue(o) ? `${o.status}:aviso:${o.issue!.at}` : o.status);
+// El estado del pago también cuenta: al confirmarse, el pedido sigue en pendiente pero ya tiene código
+const stateOf = (o: Order) => `${hasIssue(o) ? `${o.status}:aviso:${o.issue!.at}` : o.status}:${o.payment?.status ?? ''}`;
+
+function noticeOf(o: Order, before: string) {
+  const name = o.folio ? `Pedido ${o.folio}` : 'Tu pedido';
+  const payChanged = !before.endsWith(`:${o.payment?.status ?? ''}`);
+  if (payChanged && o.payment?.status === 'pagado') return { text: `¡Pago confirmado! Tu código para recoger ya está en «Mis pedidos».`, color: 'success' };
+  if (payChanged && o.payment?.status === 'fallido') return { text: `${name}: el pago no se completó. Puedes reintentarlo.`, color: 'warning' };
+  if (payChanged && o.payment?.status === 'por_reembolsar') return { text: `${name}: no se pudo surtir. Te devolveremos tu dinero.`, color: 'warning' };
+  if (hasIssue(o)) return { text: `${name}: se agotó un producto. Elige qué hacer.`, color: 'warning' };
+  return { text: `${name}: ${STATUS_LABEL[o.status]}`, color: o.status === 'listo' ? 'success' : 'primary' };
+}
 
 const sortOrders = (list: Order[]) => [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -43,7 +56,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState(0);
   // Estado de cada pedido conocido; un aviso de producto agotado también cuenta como cambio
   const known = useRef(new Map<string, string>());
-  const { setStore } = useCatalog();
+  const { setStore, applyStock, refresh: refreshCatalog } = useCatalog();
   const [toast] = useIonToast();
   const router = useIonRouter();
 
@@ -68,6 +81,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const cancel = useCallback((id: string) => keep(api.cancelOrder(id)), [keep]);
   // Pedido cancelado por la tienda: el cliente lo pasa al historial
   const dismiss = useCallback((id: string) => keep(api.resolveOrder(id, 'quitar')), [keep]);
+  // Sesión de pago: la abierta si sigue vigente o una nueva. La pantalla «Pagar pedido» la monta.
+  const pay = useCallback((id: string) => keep(api.payOrder(id)), [keep]);
 
   // Un cambio que llega en vivo: aviso dentro de la app y, si no está a la vista, en la barra de notificaciones
   const incoming = useCallback(
@@ -76,10 +91,11 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       upsert(o);
       if (before && before !== stateOf(o)) {
         void notifyOrder(o);
+        const n = noticeOf(o, before);
         void toast({
-          message: hasIssue(o) ? `Pedido ${o.folio}: se agotó un producto. Elige qué hacer.` : `Pedido ${o.folio}: ${STATUS_LABEL[o.status]}`,
-          duration: hasIssue(o) ? 6000 : 4000,
-          color: hasIssue(o) ? 'warning' : o.status === 'listo' ? 'success' : 'primary',
+          message: n.text,
+          duration: n.color === 'warning' ? 6000 : 4000,
+          color: n.color,
           position: 'top',
           cssClass: 'toast-app',
           buttons: [{ text: 'Ver', handler: () => router.push(`/cliente/pedido/${o.id}`) }],
@@ -89,6 +105,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     [upsert],
   );
 
+  const loadedRef = useRef(false);
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -97,6 +114,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       setOrders(sortOrders(list));
       setError(null);
       setLoaded(true);
+      loadedRef.current = true;
     } catch (e) {
       setError(errorMessage(e, 'No pudimos cargar tus pedidos.'));
     } finally {
@@ -108,7 +126,21 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  useEffect(() => api.watchOrders(incoming, setLive, setStore), [incoming, connection, setStore]);
+  // Si la conexión en vivo se corta, al volver se recargan pedidos y existencias completos (lo perdido no llega solo)
+  const wasLive = useRef(false);
+  const onLive = useCallback(
+    (ok: boolean) => {
+      setLive(ok);
+      if (ok && !wasLive.current && loadedRef.current) {
+        void refresh();
+        void refreshCatalog();
+      }
+      wasLive.current = ok;
+    },
+    [refresh, refreshCatalog],
+  );
+
+  useEffect(() => api.watchOrders(incoming, onLive, setStore, applyStock), [incoming, connection, setStore, applyStock, onLive]);
 
   // De vuelta al primer plano: datos frescos y conexión en vivo nueva
   useEffect(() => {
@@ -125,7 +157,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [refresh]);
 
-  return <Ctx.Provider value={{ orders, loading, loaded, error, live, refresh, upsert, incoming, create, load, change, cancel, dismiss }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ orders, loading, loaded, error, live, refresh, upsert, incoming, create, load, change, cancel, dismiss, pay }}>{children}</Ctx.Provider>;
 }
 
 export function useOrders() {

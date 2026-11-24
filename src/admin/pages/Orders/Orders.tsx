@@ -1,10 +1,11 @@
 import { IonButton, IonContent, IonIcon, IonLabel, IonPage, IonSegment, IonSegmentButton, useIonActionSheet, useIonAlert, useIonRouter, useIonToast } from '@ionic/react';
-import { alertCircleOutline, bagCheckOutline, closeCircleOutline, createOutline, flameOutline, hourglassOutline, qrCodeOutline, timeOutline, warningOutline } from 'ionicons/icons';
+import { alertCircleOutline, bagCheckOutline, cashOutline, closeCircleOutline, createOutline, flameOutline, globeOutline, hourglassOutline, qrCodeOutline, timeOutline, warningOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
 import { AppHeader } from '../../../components/AppHeader';
 import { EmptyState } from '../../../components/EmptyState';
 import { isToday, money, time } from '../../../data/models';
-import { ACTIVE_STATUSES, ORDER_NEXT_ACTION, ORDER_STATUS_LABEL, reservedStock, type PickupOrder } from '../../../data/pickup';
+import { ACTIVE_STATUSES, isPaidOnline, ORDER_NEXT_ACTION, ORDER_STATUS_LABEL, reservedStock, type PickupOrder } from '../../../data/pickup';
+import { shortfallText } from '../../../domain/stock';
 import { useApp } from '../../context/AppContext';
 import './Orders.css';
 
@@ -56,13 +57,29 @@ export default function Orders() {
     });
   };
 
-  const act = (o: PickupOrder) => {
+  const [busy, setBusy] = useState<string>();
+
+  const act = async (o: PickupOrder) => {
+    if (busy) return;
     if (!connected) {
       void toast({ message: 'Necesitas conexión con la caja para mover pedidos.', duration: 2500, color: 'warning', position: 'top', cssClass: 'toast-app' });
       return;
     }
     if (o.status === 'listo') return router.push(`/movil/entregar?pedido=${encodeURIComponent(o.id)}`);
-    advanceOrder(o.id);
+    setBusy(o.id);
+    const r = await advanceOrder(o.id);
+    setBusy(undefined);
+    if (!r.ok) {
+      // El servidor no dejó: el pedido se queda donde estaba y se dice qué falta
+      void toast({
+        message: r.shortages?.length ? `No se puede empezar ${o.folio}. ${shortfallText(r.shortages)}` : r.message,
+        duration: 6000,
+        color: 'danger',
+        position: 'top',
+        cssClass: 'toast-app',
+      });
+      return;
+    }
     void toast({
       message: o.status === 'pendiente' ? `${o.folio}: empezaste a prepararlo` : `${o.folio} listo. Le avisamos a ${o.customer.name}.`,
       duration: 2000,
@@ -151,8 +168,13 @@ export default function Orders() {
         {o.issue && <span className="mo-flag is-waiting"><IonIcon icon={hourglassOutline} />Esperando al cliente: se agotó un producto</span>}
         {missing && <span className="mo-flag is-warn"><IonIcon icon={warningOutline} />Falta existencia</span>}
         {o.editedAt && !o.issue && <span className="mo-flag is-edited"><IonIcon icon={createOutline} />El cliente cambió productos</span>}
+        {ACTIVE_STATUSES.includes(o.status) && (isPaidOnline(o) ? (
+          <span className="mo-flag is-paid"><IonIcon icon={globeOutline} />Pagado en línea</span>
+        ) : (
+          <span className="mo-flag is-cash"><IonIcon icon={cashOutline} />Se paga al recoger</span>
+        ))}
         {!o.issue && (
-          <IonButton expand="block" className="mo-act" color={o.status === 'listo' ? 'success' : 'primary'} fill={o.status === 'listo' ? 'solid' : 'outline'} onClick={() => act(o)}>
+          <IonButton expand="block" className="mo-act" color={o.status === 'listo' ? 'success' : 'primary'} fill={o.status === 'listo' ? 'solid' : 'outline'} disabled={busy === o.id} onClick={() => void act(o)}>
             {o.status === 'listo' && <IonIcon slot="start" icon={qrCodeOutline} />}
             {o.status === 'listo' ? 'Escanear QR y entregar' : ORDER_NEXT_ACTION[o.status as keyof typeof ORDER_NEXT_ACTION]}
           </IonButton>

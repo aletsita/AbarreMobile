@@ -3,10 +3,11 @@ import { alertCircleOutline, cashOutline, checkmarkOutline, closeCircleOutline, 
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ApiError, errorMessage } from '../../api/errors';
-import { hasIssue, ORDER_STEPS, STATUS_LABEL, type Order, type OrderStatus } from '../../api/types';
+import { awaitingPayment, hasIssue, isPaid, ORDER_STEPS, STATUS_LABEL, type Order, type OrderStatus } from '../../api/types';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
+import { PaymentStatus } from '../components/PaymentStatus';
 import { PickupCode } from '../components/PickupCode';
 import { dateTime, StatusChip } from '../components/ui';
 import { useCatalog } from '../lib/catalog';
@@ -15,7 +16,7 @@ import { useOrders } from '../lib/orders';
 const STEP_TEXT: Record<OrderStatus, string> = {
   pendiente: 'La tienda recibió tu pedido.',
   preparando: 'Están juntando tus productos.',
-  listo: 'Ya puedes pasar a recogerlo y pagar en la tienda. Muestra tu código en la caja.',
+  listo: 'Ya puedes pasar a recogerlo. Muestra tu código en la caja.',
   entregado: 'Recogiste tu pedido. ¡Gracias!',
   cancelado: 'La tienda canceló tu pedido.',
 };
@@ -60,7 +61,7 @@ function IssueNotice({ order }: { order: Order }) {
   const cancel = () =>
     alert({
       header: '¿Cancelar tu pedido?',
-      message: 'La tienda dejará de prepararlo. No se te cobra nada.',
+      message: isPaid(order) ? 'La tienda dejará de prepararlo y te devolverá tu dinero.' : 'La tienda dejará de prepararlo. No se te cobra nada.',
       buttons: [
         { text: 'Volver', role: 'cancel' },
         { text: 'Cancelar pedido', role: 'destructive', handler: () => void run(() => cancelOrder(order.id), `Cancelaste el pedido ${order.folio}`) },
@@ -85,11 +86,14 @@ function IssueNotice({ order }: { order: Order }) {
         ))}
       </ul>
       {closed && <p className="cl-cancel-done">La tienda está cerrada por ahora. Podrás responder cuando vuelva a abrir.</p>}
-      <IonButton expand="block" className="btn-lg" routerLink={`/cliente/pedido/${order.id}/cambiar`} disabled={busy || closed}>
-        <IonIcon slot="start" icon={swapHorizontalOutline} />
-        Elegir otro producto
-      </IonButton>
-      {kept.length > 0 && (
+      {isPaid(order) && <p className="cl-cancel-done">Tu pedido ya está pagado: si lo cancelas, te devolvemos tu dinero.</p>}
+      {!isPaid(order) && (
+        <IonButton expand="block" className="btn-lg" routerLink={`/cliente/pedido/${order.id}/cambiar`} disabled={busy || closed}>
+          <IonIcon slot="start" icon={swapHorizontalOutline} />
+          Elegir otro producto
+        </IonButton>
+      )}
+      {kept.length > 0 && !isPaid(order) && (
         <IonButton expand="block" fill="outline" className="btn-lg" disabled={busy || closed} onClick={removeMissing}>
           <IonIcon slot="start" icon={removeCircleOutline} />
           Quitar lo agotado y seguir
@@ -113,8 +117,14 @@ function CancelButton({ order }: { order: Order }) {
 
   const confirm = () =>
     alert({
-      header: `¿Cancelar el pedido ${order.folio}?`,
-      message: order.status === 'pendiente' ? 'La tienda todavía no lo empieza. No se te cobra nada.' : 'La tienda ya lo está preparando. Al cancelarlo deja de prepararlo y no se te cobra nada.',
+      header: order.folio ? `¿Cancelar el pedido ${order.folio}?` : '¿Cancelar tu pedido?',
+      message: isPaid(order)
+        ? 'Ya está pagado: al cancelarlo la tienda deja de prepararlo y te devuelve tu dinero.'
+        : awaitingPayment(order)
+          ? 'Todavía no está pagado: no se te cobra nada.'
+          : order.status === 'pendiente'
+            ? 'La tienda todavía no lo empieza. No se te cobra nada.'
+            : 'La tienda ya lo está preparando. Al cancelarlo deja de prepararlo y no se te cobra nada.',
       buttons: [
         { text: 'Volver', role: 'cancel' },
         {
@@ -171,7 +181,9 @@ function CancelNotice({ order }: { order: Order }) {
           <h2>{reason === 'cliente' ? 'Cancelaste este pedido' : 'La tienda canceló tu pedido'}</h2>
           <p>
             {reason === 'cliente'
-              ? 'La tienda ya no lo va a preparar. No se te cobró nada.'
+              ? order.payment?.status === 'por_reembolsar' || order.payment?.status === 'reembolsado'
+                ? 'La tienda ya no lo va a preparar.'
+                : 'La tienda ya no lo va a preparar. No se te cobró nada.'
               : order.cancel?.note
                 ? `Motivo: ${order.cancel.note}`
                 : reason === 'sin-existencia'
@@ -250,7 +262,7 @@ export default function PedidoDetalle() {
 
   return (
     <IonPage>
-      <AppHeader title={`Pedido ${order.folio}`} backHref="/cliente/pedidos" />
+      <AppHeader title={order.folio ? `Pedido ${order.folio}` : 'Tu pedido'} backHref="/cliente/pedidos" />
       <IonContent>
         <IonRefresher slot="fixed" onIonRefresh={(e) => void load().finally(() => e.detail.complete())}>
           <IonRefresherContent />
@@ -265,6 +277,7 @@ export default function PedidoDetalle() {
             <strong className="money">{money(order.total)}</strong>
           </section>
 
+          <PaymentStatus order={order} />
           {hasIssue(order) && <IssueNotice order={order} />}
           {order.status === 'cancelado' && <CancelNotice order={order} />}
           {order.editedAt && !hasIssue(order) && order.status !== 'cancelado' && (
@@ -275,7 +288,7 @@ export default function PedidoDetalle() {
           )}
           {order.status !== 'entregado' && order.status !== 'cancelado' && <PickupCode order={order} />}
 
-          {order.status !== 'cancelado' && <section className="card">
+          {order.status !== 'cancelado' && !awaitingPayment(order) && <section className="card">
             <h2 className="section-title">Seguimiento</h2>
             <ol className="cl-timeline">
               {ORDER_STEPS.map((s, i) => {
@@ -314,7 +327,7 @@ export default function PedidoDetalle() {
             </div>
           </section>
 
-          {order.status !== 'entregado' && order.status !== 'cancelado' && (
+          {order.status !== 'entregado' && order.status !== 'cancelado' && !order.payment && (
             <div className="cl-pickup">
               <IonIcon icon={cashOutline} />
               <span><strong>Pago al recoger</strong> en la tienda.</span>
