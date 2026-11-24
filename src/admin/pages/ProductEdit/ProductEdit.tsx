@@ -1,7 +1,8 @@
 import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonToolbar, useIonRouter, useIonToast } from '@ionic/react';
-import { add, arrowDown, arrowUp, barcodeOutline, constructOutline, remove, saveOutline, sparklesOutline } from 'ionicons/icons';
+import { add, arrowDown, arrowUp, barcodeOutline, constructOutline, remove, saveOutline, sparklesOutline, trashOutline } from 'ionicons/icons';
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useAppAlert } from '../../../components/AppAlert';
 import { AppHeader } from '../../../components/AppHeader';
 import { EmptyState } from '../../../components/EmptyState';
 import { AreaField, MoneyField, SwitchField, TextField } from '../../../components/Form';
@@ -17,9 +18,11 @@ const MOVE_LABEL: Record<MovementType, string> = { venta: 'Venta', entrada: 'Ent
 
 export default function ProductEdit() {
   const { id } = useParams<{ id: string }>();
-  const { products, saveProduct, movementsFor } = useApp();
+  const { products, saveProduct, deleteProduct, movementsFor } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
+  const showAlert = useAppAlert();
+  const [deleting, setDeleting] = useState(false);
   const view = products.find((p) => p.id === id);
   const [draft, setDraft] = useState<Product>();
   // Texto de los campos numéricos, para poder escribir "12." sin que se borre el punto
@@ -78,6 +81,27 @@ export default function ProductEdit() {
       cssClass: 'toast-app',
     });
     router.goBack();
+  };
+
+  // Borrado lógico: las ventas y cortes que ya lo incluyen no cambian
+  const askDelete = async () => {
+    const yes = await showAlert({
+      tone: 'warning',
+      title: `¿Borrar ${view.name}?`,
+      message: 'Deja de aparecer en el inventario, en la caja y en la app de clientes. Las ventas y cortes que ya lo incluyen no cambian.',
+      primary: { text: 'Borrar producto', danger: true },
+      secondary: 'Cancelar',
+    });
+    if (!yes) return;
+    setDeleting(true);
+    const r = await deleteProduct(view.id);
+    setDeleting(false);
+    if (!r.ok) {
+      await showAlert({ tone: 'error', title: 'No se pudo borrar', message: r.message, primary: 'Entendido' });
+      return;
+    }
+    void toast({ message: `${view.name} se borró del inventario`, duration: 2000, color: 'success', position: 'top', cssClass: 'toast-app' });
+    router.push('/movil/inventario', 'back', 'replace');
   };
 
   return (
@@ -163,6 +187,10 @@ export default function ProductEdit() {
           <IonButton expand="block" className="btn-xl" disabled={!changed || !draft.name.trim() || !(draft.price > 0)} onClick={save}>
             <IonIcon slot="start" icon={saveOutline} />
             Guardar cambios
+          </IonButton>
+          <IonButton expand="block" fill="clear" color="danger" className="btn-lg" disabled={deleting} onClick={() => void askDelete()}>
+            <IonIcon slot="start" icon={trashOutline} />
+            Borrar producto
           </IonButton>
         </IonToolbar>
       </IonFooter>

@@ -2,7 +2,7 @@ import { apiBaseOf, getServer } from '../lib/server';
 import { ApiError } from './errors';
 import { httpTransport } from './http';
 import type { Method, RequestOptions, Transport } from './transport';
-import type { AuthResponse, CatalogProduct, Customer, NewOrder, Order, StockUpdate, StoreStatus } from './types';
+import type { AuthResponse, CatalogProduct, CatalogUpdate, Customer, NewOrder, Order, StockUpdate, StoreStatus } from './types';
 
 // La API vive en el mismo servidor que la sincronización con la caja (ver API.md)
 function transport(): Transport {
@@ -42,6 +42,8 @@ export const api = {
   me: () => call<Customer>('GET', '/yo'),
 
   catalog: () => call<CatalogProduct[]>('GET', '/catalogo'),
+  // Solo personal de la tienda (403 para clientes). 409 si está en una cuenta o apartado en un pedido.
+  deleteProduct: (id: string) => call<void>('DELETE', `/productos/${encodeURIComponent(id)}`),
   store: () => call<StoreStatus>('GET', '/tienda'),
   orders: () => call<Order[]>('GET', '/pedidos'),
   order: (id: string) => call<Order>('GET', `/pedidos/${encodeURIComponent(id)}`),
@@ -64,6 +66,7 @@ export const api = {
     onStatus: (open: boolean) => void,
     onStore?: (s: StoreStatus) => void,
     onStock?: (list: StockUpdate[]) => void,
+    onCatalog?: (u: CatalogUpdate) => void,
   ): () => void {
     const sent = token;
     if (!sent) return () => undefined;
@@ -75,6 +78,7 @@ export const api = {
           if (type === 'pedido') onOrder(data as Order);
           else if (type === 'tienda') onStore?.(data as StoreStatus);
           else if (type === 'inventario') onStock?.(data as StockUpdate[]);
+          else if (type === 'catalogo') onCatalog?.(data as CatalogUpdate);
         },
         onStatus,
       );
