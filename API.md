@@ -60,7 +60,9 @@ Reglas: nombre de 2 letras o más, correo válido, teléfono de 10 dígitos y co
 { id, name, category, price, stock, description?, photo? }
 ```
 
-`stock` es lo que se puede pedir: existencia menos lo apartado por pedidos sin entregar. La app **no** lo muestra al cliente tal cual: solo «Disponible», «¡Quedan pocas piezas!» (5 o menos) o «Agotado».
+`stock` es lo que se puede pedir: existencia menos lo apartado por pedidos sin entregar (los que esperan pago no apartan). La app **no** lo muestra al cliente tal cual: solo «Disponible», «¡Quedan pocas piezas!» (5 o menos) o «Agotado».
+
+Cuando cambia la existencia o lo apartado (venta en caja, pedido, ajuste), el SSE de `/pedidos/eventos` manda el evento `inventario` con `{ id, stock }[]` de los productos que cambiaron. Si la conexión en vivo se corta, la app recarga el catálogo y los pedidos completos al reconectarse.
 
 ## Pedidos (rol cliente)
 
@@ -68,26 +70,38 @@ Reglas: nombre de 2 letras o más, correo válido, teléfono de 10 dígitos y co
 |---|---|
 | `GET /pedidos` | Mis pedidos |
 | `GET /pedidos/:id` | Uno de mis pedidos (`404` si es de otra persona) |
-| `POST /pedidos` | `201` el pedido ya aceptado por la caja |
+| `POST /pedidos` | `201` el pedido **sin pagar** con el secreto de su sesión de pago embebida (`paymentClientSecret`). Llega a la caja hasta que se confirma el pago |
+| `POST /pedidos/:id/pagar` | Reintentar el pago. Si la sesión anterior sigue abierta regresa la misma (no se cobra dos veces); si venció o falló, abre otra. `409 sin-stock` si ya no alcanza |
+| `POST /pagos/webhook` | Solo para Stripe. Firma `Stripe-Signature` (HMAC-SHA256 con `STRIPE_WEBHOOK_SECRET`, tolerancia 5 min); sin firma válida, `400`. Un evento repetido responde `200 { repetido: true }` y no cambia nada |
+| `GET /pagos/regreso?estado=pagado\|cancelado` | Página a la que regresa Stripe; solo dice «regresa a la app» (la confirmación es el webhook) |
 | `POST /pedidos/:id/cambiar` | `{ items: { productId, qty }[] }` para un pedido con aviso (`issue`). Regresa el mismo pedido con los productos nuevos. `409 sin-aviso` si no tiene aviso, `409 pedido-cambio` si no alcanza la existencia |
 | `POST /pedidos/:id/cancelar` | El cliente cancela un pedido con aviso. Queda `cancelado` con `reason: 'cliente'` |
 | `POST /pedidos/:id/resolver` | `{ accion: 'quitar' \| 'reemplazar' }` para pasar al historial un pedido cancelado por la tienda. `409` si no está cancelado |
-| `GET /pedidos/eventos?token=…` | Server-Sent Events: evento `pedido` con el pedido completo cada vez que cambia |
+| `GET /pedidos/eventos?token=…` | Server-Sent Events: evento `pedido` con el pedido completo cada vez que cambia, `tienda` (abierta o cerrada) e `inventario` |
 
 `POST /pedidos` lleva el encabezado `Idempotency-Key` (la misma clave regresa el mismo pedido) y el cuerpo:
 
 ```ts
-{ items: { productId, qty, price }[], note, expectedTotal, pickupCode }  // pickupCode: 6 dígitos que genera el teléfono
+{ items: { productId, qty, price }[], note, expectedTotal }  // el código para recoger ya no lo manda el teléfono
 ```
 
-- `409 pedido-cambio` si cambió un precio, no alcanza la existencia o la caja no lo aceptó. Trae `changes` y `products` (los datos actuales) para que la app ajuste el carrito.
-- `503 tienda-desconectada` si la caja no responde.
+- El monto lo calcula el servidor con los precios actuales de la caja (`price` solo sirve para avisar cambios). La sesión de Stripe Checkout se crea con llave de idempotencia por intento (`checkout-<id>-<n>`).
+- `409 pedido-cambio` si cambió un precio o no alcanza la existencia. Trae `changes` y `products` (los datos actuales) para que la app ajuste el carrito.
+- `503 tienda-desconectada` si la caja no responde; `503 pagos-no-configurados` si el servidor no tiene claves de prueba de Stripe.
+
+**Pago en línea (obligatorio).** La tarjeta se escribe en la página de Stripe: no pasa por la app ni por el servidor. El pedido nace con `payment.status: 'pendiente_de_pago'` y no aparta nada. Cuando llega el webhook firmado `checkout.session.completed` (pagado):
+- si alcanza la existencia, se aparta en el mismo paso, queda `pagado` con `paidAt`, `amount` y la referencia de Stripe, el servidor genera el `pickupCode` y lo manda a la caja (`ORDER_RECEIVED`);
+- si ya no alcanza, el pedido queda `cancelado` (`reason: 'sin-existencia'`) y el pago `por_reembolsar` (el reembolso se hace a mano en Stripe).
+`checkout.session.expired` deja el pago `fallido`: el cliente puede reintentar. Un pedido pagado que se cancela (por el cliente o la tienda) queda `por_reembolsar`. Un pedido pagado no se puede cambiar (`409 pedido-pagado`).
 
 Pedido:
 
 ```ts
 { id, folio: 'P-0006', status: 'pendiente' | 'preparando' | 'listo' | 'entregado' | 'cancelado', items, total, note, createdAt,
-  history: { status, at }[], pickupCode,
+  history: { status, at }[],
+  pickupCode?,                                                                     // solo con el pago confirmado
+  payment?: { method: 'en_linea', status: 'pendiente_de_pago' | 'pagado' | 'fallido' | 'por_reembolsar' | 'reembolsado', amount?, paidAt? },
+  paymentClientSecret?,                                                            // sesión de pago embebida (Stripe), mientras falta pagar
   issue?: { missing: string[], at },                                               // se agotó algo: espera al cliente
   editedAt?,                                                                       // el cliente cambió productos
   cancel?: { reason: 'sin-existencia' | 'otro' | 'cliente', missing: string[], note?, at },  // missing: ids de los productos agotados
@@ -108,7 +122,7 @@ La caja también puede cancelar el pedido por **otro motivo** (con un texto para
 
 ### Celular de la tienda
 
-El personal (Dueño, Cajero, Inventario) vinculado a la caja tiene en el celular la pestaña **Pedidos**: empezar a preparar, marcar listo y **Entregar**, que escanea el QR del cliente (o se escriben sus 6 números) y cobra. Publica los mismos `ORDER_ADVANCE` y `ORDER_DELIVER` que la caja, así que la existencia se descuenta en todos lados.
+El personal (Dueño, Cajero, Inventario) vinculado a la caja tiene en el celular la pestaña **Pedidos**: empezar a preparar, marcar listo y **Entregar**, que escanea el QR del cliente (o se escribe su código) y cobra; si el pedido ya está pagado en línea, solo entrega. Cada pedido dice si está «Pagado en línea» o «Se paga al recoger». Publica los mismos `ORDER_ADVANCE` y `ORDER_DELIVER` que la caja y el servidor los revisa antes (ver SYNC_PROTOCOL.md): sin existencia no se puede empezar a preparar.
 
 ## Notificaciones
 

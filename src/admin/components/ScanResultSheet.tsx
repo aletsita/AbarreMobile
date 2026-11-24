@@ -2,6 +2,7 @@ import { IonButton, IonContent, IonIcon, IonModal, useIonRouter, useIonToast } f
 import {
   add,
   addCircleOutline,
+  alertCircleOutline,
   arrowDown,
   arrowUp,
   constructOutline,
@@ -17,6 +18,7 @@ import { StockBadge } from './StockBadge';
 import { SyncBadge } from './SyncBadge';
 import { useApp, type ProductView } from '../context/AppContext';
 import { money, shortDate, type MovementType } from '../../data/models';
+import { availableLabel, clampToAvailable, piecesLabel } from '../../domain/stock';
 import './ScanResultSheet.css';
 
 export type ScanMode = 'vender' | 'inventario' | 'consultar';
@@ -25,6 +27,8 @@ interface Props {
   product?: ProductView;
   mode: ScanMode;
   initialQty?: number;
+  // Cuenta que la caja tiene en pantalla: ahí cae lo que se manda en modo vender (solo para mostrarla)
+  destination?: string;
   onClose: () => void;
 }
 
@@ -32,13 +36,29 @@ const MOVE_ICON: Record<MovementType, string> = { venta: arrowDown, entrada: arr
 const MOVE_LABEL: Record<MovementType, string> = { venta: 'Venta', entrada: 'Entrada', ajuste: 'Ajuste', alta: 'Alta' };
 const HEIGHTS: Record<ScanMode, number> = { vender: 0.52, inventario: 0.62, consultar: 0.92 };
 
-export function ScanResultSheet({ product, mode, initialQty = 1, onClose }: Props) {
-  const { sendToRegister, addStock, store, thisDevice, movementsFor } = useApp();
+export function ScanResultSheet({ product, mode, initialQty = 1, destination, onClose }: Props) {
+  const { sendToRegister, addStock, store, thisDevice, movementsFor, availableFor } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
   const [qty, setQty] = useState(initialQty);
 
-  useEffect(() => setQty(initialQty), [product?.id, mode, initialQty]);
+  // Al vender no se puede mandar más de lo disponible (existencia − apartado − lo que ya está en cuentas)
+  const selling = mode === 'vender';
+  const available = product && selling ? availableFor(product.id) : Infinity;
+  const soldOut = selling && available <= 0;
+  const [limited, setLimited] = useState(false);
+
+  useEffect(() => {
+    if (!selling) {
+      setQty(initialQty);
+      setLimited(false);
+      return;
+    }
+    const r = clampToAvailable(initialQty, available);
+    setQty(Math.max(1, r.qty));
+    setLimited(r.limited && r.qty > 0);
+    // Solo al abrir otro producto; el disponible que cambie después se revisa al enviar
+  }, [product?.id, mode, initialQty]);
 
   const notify = (message: string, saved: boolean) =>
     toast({
@@ -50,10 +70,21 @@ export function ScanResultSheet({ product, mode, initialQty = 1, onClose }: Prop
     });
 
   const send = () => {
-    if (!product) return;
-    const r = sendToRegister(product, qty);
-    notify(`${qty} × ${product.name} enviado a ${store.register}`, r === 'pendiente');
+    if (!product || soldOut) return;
+    const n = Math.min(qty, available);
+    if (n < 1) return;
+    // Sin cuenta elegida: la caja lo agrega a la cuenta que tenga en pantalla
+    const r = sendToRegister(product, n);
+    notify(`${n} × ${product.name} agregado a ${destination ?? store.register}`, r === 'pendiente');
     onClose();
+  };
+
+  const more = () => {
+    if (qty >= available) {
+      setLimited(true);
+      return;
+    }
+    setQty((q) => q + 1);
   };
 
   const sumStock = () => {
@@ -93,7 +124,22 @@ export function ScanResultSheet({ product, mode, initialQty = 1, onClose }: Prop
             </div>
           </div>
 
-          {mode !== 'consultar' && (
+          {soldOut && (
+            <p className="ss-warn is-danger" role="alert">
+              <IonIcon icon={alertCircleOutline} />
+              <span>
+                <strong>Sin stock para vender.</strong> Las {piecesLabel(product.stock)} que marca el inventario ya están apartadas por pedidos o en otras cuentas.
+              </span>
+            </p>
+          )}
+          {selling && !soldOut && limited && (
+            <p className="ss-warn" role="status">
+              <IonIcon icon={alertCircleOutline} />
+              <span>Solo hay <strong>{availableLabel(available)}</strong> para vender.</span>
+            </p>
+          )}
+
+          {mode !== 'consultar' && !soldOut && (
             <section className="ss-qty">
               <span>{mode === 'vender' ? 'Cantidad' : 'Piezas que entran'}</span>
               <div className="ss-stepper">
@@ -101,7 +147,7 @@ export function ScanResultSheet({ product, mode, initialQty = 1, onClose }: Prop
                   <IonIcon icon={remove} />
                 </button>
                 <span className="money" aria-live="polite">{qty}</span>
-                <button type="button" onClick={() => setQty((q) => q + 1)} aria-label="Uno más">
+                <button type="button" onClick={mode === 'vender' ? more : () => setQty((q) => q + 1)} aria-label="Uno más" disabled={soldOut}>
                   <IonIcon icon={add} />
                 </button>
               </div>
@@ -124,10 +170,21 @@ export function ScanResultSheet({ product, mode, initialQty = 1, onClose }: Prop
           {mode === 'vender' && (
             <div className="ss-actions">
               {thisDevice ? (
-                <IonButton expand="block" color="secondary" className="btn-xl" onClick={send}>
-                  <IonIcon slot="start" icon={paperPlaneOutline} />
-                  Enviar a la caja · {money(product.price * qty)}
-                </IonButton>
+                <>
+                  <IonButton expand="block" color="secondary" className="btn-xl" onClick={send} disabled={soldOut}>
+                    <IonIcon slot="start" icon={paperPlaneOutline} />
+                    {soldOut ? 'Sin stock' : `Enviar a la caja · ${money(product.price * qty)}`}
+                  </IonButton>
+                  {!soldOut && (
+                    <p className="ss-dest">
+                      {destination ? (
+                        <>Se agrega a <strong>{destination}</strong>, la cuenta en pantalla de {store.register}.</>
+                      ) : (
+                        <>Se agrega a la cuenta en pantalla de {store.register}.</>
+                      )}
+                    </p>
+                  )}
+                </>
               ) : (
                 <>
                   <p className="ss-note">Este celular no está vinculado con ninguna caja.</p>

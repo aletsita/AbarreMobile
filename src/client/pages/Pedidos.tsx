@@ -5,7 +5,9 @@ import { hasIssue, isActive, needsAction } from '../../api/types';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { money } from '../../data/models';
+import { PaymentChip } from '../components/PaymentStatus';
 import { dateTime, StatusChip } from '../components/ui';
+import { spacedCode } from '../lib/pickup';
 import { useOrders } from '../lib/orders';
 
 type Tab = 'activos' | 'historial';
@@ -45,11 +47,20 @@ export default function Pedidos() {
           <li key={o.id}>
             <button type="button" className={`card cl-order ${needsAction(o) ? 'is-alert' : ''}`} onClick={() => router.push(`/cliente/pedido/${o.id}`)}>
               <span className="cl-order-main">
-                <strong>Pedido {o.folio}</strong>
+                <strong>{o.folio ? `Pedido ${o.folio}` : 'Pedido sin confirmar'}</strong>
                 <span className="muted">
                   {dateTime(o.createdAt)} · {o.items.reduce((n, i) => n + i.qty, 0)} piezas
                 </span>
-                <StatusChip status={o.status} />
+                <span className="cl-order-chips">
+                  <StatusChip status={o.status} />
+                  <PaymentChip order={o} />
+                </span>
+                {o.pickupCode && o.payment?.status === 'pagado' && o.status !== 'entregado' && o.status !== 'cancelado' && (
+                  <span className="cl-order-code" aria-label={`Código para recoger ${o.pickupCode.split('').join(' ')}`}>
+                    <small>Código para recoger</small>
+                    <strong>{spacedCode(o.pickupCode)}</strong>
+                  </span>
+                )}
                 {needsAction(o) && (
                   <span className="cl-order-alert">
                     {hasIssue(o) ? 'Se agotó un producto · elige qué hacer' : 'La tienda lo canceló · toca para ver'}

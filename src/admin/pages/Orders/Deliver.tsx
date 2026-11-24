@@ -1,20 +1,24 @@
 import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonToolbar, useIonRouter, useIonToast, useIonViewDidEnter, useIonViewWillLeave } from '@ionic/react';
-import { alertCircleOutline, cardOutline, cashOutline, checkmarkDone, swapHorizontalOutline } from 'ionicons/icons';
+import { alertCircleOutline, cardOutline, cashOutline, checkmarkDone, globeOutline, swapHorizontalOutline } from 'ionicons/icons';
 import { useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AppHeader } from '../../../components/AppHeader';
 import { MoneyField } from '../../../components/Form';
 import { money, PAYMENT_LABEL, type CashMethod } from '../../../data/models';
-import { ORDER_STATUS_LABEL, parsePickupInput, PICKUP_METHODS, type PickupOrder } from '../../../data/pickup';
+import { cleanPickupCode, isPaidOnline, ORDER_STATUS_LABEL, parsePickupInput, PICKUP_CODE, PICKUP_METHODS, type PickupOrder } from '../../../data/pickup';
+import { shortfallText } from '../../../domain/stock';
 import { ScannerView } from '../../scanner/ScannerView';
 import { useApp } from '../../context/AppContext';
 import './Orders.css';
 
 const MAX_FAILS = 5;
 const LOCK_MS = 60000;
-const METHOD_ICON: Record<CashMethod, string> = { efectivo: cashOutline, tarjeta: cardOutline, transferencia: swapHorizontalOutline };
+// Billetes con los que suele pagar el cliente; los menores al total se ven pero no se pueden elegir
+const BILLS = [20, 50, 100, 200, 500, 1000];
+const METHOD_ICON: Record<CashMethod, string> = { efectivo: cashOutline, tarjeta: cardOutline, transferencia: swapHorizontalOutline, en_linea: globeOutline };
 
-// Entregar un pedido desde el celular: el código del cliente (QR o 6 dígitos) y después el cobro.
+// Entregar un pedido desde el celular: el código del cliente (QR o 6 caracteres) y después el cobro.
+// Si ya se pagó en la app no se cobra: solo se valida el código (el servidor lo revisa y limita los intentos).
 // Igual que en la caja: el código nunca se muestra, solo se compara.
 export default function Deliver() {
   const { orders, deliverOrder } = useApp();
@@ -33,6 +37,7 @@ export default function Deliver() {
 
   const [method, setMethod] = useState<CashMethod>('efectivo');
   const [received, setReceived] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useIonViewDidEnter(() => setVisible(true));
   useIonViewWillLeave(() => setVisible(false));
@@ -52,7 +57,7 @@ export default function Deliver() {
   const check = (raw: string) => {
     if (locked || verified) return;
     const parsed = parsePickupInput(raw);
-    if (!parsed) return setError('Escribe los 6 dígitos o escanea el QR del cliente.');
+    if (!parsed) return setError('Escribe los 6 caracteres del código o escanea el QR del cliente.');
     let found: PickupOrder | undefined;
     if (preset) {
       if (parsed.orderId && parsed.orderId !== preset.id) return fail(`Ese código es de otro pedido, no del ${preset.folio}.`);
@@ -81,18 +86,30 @@ export default function Deliver() {
   };
 
   const total = verified?.order.total ?? 0;
+  const prepaid = verified ? isPaidOnline(verified.order) : false;
   const paid = Number(received) || 0;
-  const short = method === 'efectivo' && paid < total;
+  const short = !prepaid && method === 'efectivo' && paid < total;
 
-  const confirm = () => {
-    if (!verified || short) return;
-    const sale = deliverOrder(verified.order.id, method, method === 'efectivo' ? paid : total, verified.code);
-    if (!sale) {
-      void toast({ message: 'No se pudo entregar. Revisa el pedido en la caja.', duration: 3000, color: 'danger', position: 'top', cssClass: 'toast-app' });
+  const confirm = async () => {
+    if (!verified || short || busy) return;
+    setBusy(true);
+    const how = prepaid ? 'en_linea' : method;
+    const r = await deliverOrder(verified.order.id, how, how === 'efectivo' ? paid : total, verified.code);
+    setBusy(false);
+    if (!r.ok) {
+      // Código rechazado por el servidor (o bloqueado): se vuelve a pedir
+      if (r.code?.startsWith('codigo')) {
+        setVerified(undefined);
+        setError(r.message);
+      }
+      void toast({ message: r.shortages?.length ? shortfallText(r.shortages) : r.message, duration: 5000, color: 'danger', position: 'top', cssClass: 'toast-app' });
       return;
     }
+    const sale = r.value;
     void toast({
-      message: `${verified.order.folio} entregado · venta #${sale.folio}${method === 'efectivo' && paid > total ? ` · cambio ${money(paid - total)}` : ''}`,
+      message: prepaid
+        ? `${verified.order.folio} entregado · venta #${sale.folio} pagada en línea`
+        : `${verified.order.folio} entregado · venta #${sale.folio}${method === 'efectivo' && paid > total ? ` · cambio ${money(paid - total)}` : ''}`,
       duration: 4000,
       color: 'success',
       position: 'top',
@@ -103,7 +120,7 @@ export default function Deliver() {
 
   return (
     <IonPage>
-      <AppHeader title={verified ? `Cobrar ${verified.order.folio}` : preset ? `Entregar ${preset.folio}` : 'Entregar pedido'} backHref="/movil/pedidos" />
+      <AppHeader title={verified ? `${prepaid ? 'Entregar' : 'Cobrar'} ${verified.order.folio}` : preset ? `Entregar ${preset.folio}` : 'Entregar pedido'} backHref="/movil/pedidos" />
       <IonContent>
         <div className="page-pad is-narrow">
           {!verified ? (
@@ -121,27 +138,29 @@ export default function Deliver() {
                   onCode={check}
                 />
               </div>
-              <label className="section-title" htmlFor="dl-code" style={{ margin: 0 }}>O escribe los 6 números</label>
+              <label className="section-title" htmlFor="dl-code" style={{ margin: 0 }}>O escribe el código (6 caracteres)</label>
               <input
                 id="dl-code"
                 className="dl-code"
-                inputMode="numeric"
+                inputMode="text"
+                autoCapitalize="characters"
                 autoComplete="off"
-                placeholder="000000"
+                spellCheck={false}
+                placeholder="ABC234"
                 maxLength={6}
                 value={text}
                 disabled={locked}
                 aria-invalid={!!error}
                 aria-describedby="dl-help"
                 onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  const v = cleanPickupCode(e.target.value);
                   setText(v);
                   setError('');
-                  if (v.length === 6) check(v);
+                  if (PICKUP_CODE.test(v)) check(v);
                 }}
               />
               <p id="dl-help" className={`dl-help ${error ? 'is-error' : ''}`} role={error ? 'alert' : undefined}>
-                {error ? <><IonIcon icon={alertCircleOutline} />{error}</> : 'Se revisa solo al completar los 6 números.'}
+                {error ? <><IonIcon icon={alertCircleOutline} />{error}</> : 'Se revisa solo al completar los 6 caracteres.'}
               </p>
             </div>
           ) : (
@@ -157,11 +176,15 @@ export default function Deliver() {
                   ))}
                 </ul>
                 <div className="dl-total">
-                  <span>Total a cobrar</span>
+                  <span>{prepaid ? 'Total pagado en línea' : 'Total a cobrar'}</span>
                   <strong className="money">{money(total)}</strong>
                 </div>
               </section>
 
+              {prepaid ? (
+                <p className="dl-paid"><IonIcon icon={globeOutline} />Ya está pagado en la app. No cobres nada: solo entrega el pedido.</p>
+              ) : (
+              <>
               <h2 className="section-title" style={{ margin: 0 }}>¿Cómo paga?</h2>
               <div className="dl-methods" role="radiogroup" aria-label="Forma de pago">
                 {PICKUP_METHODS.map((m) => (
@@ -174,19 +197,33 @@ export default function Deliver() {
 
               {method === 'efectivo' && (
                 <>
-                  <MoneyField label="Recibí" value={received} onChange={setReceived} />
-                  <div className="dl-quick">
-                    {[total, 50, 100, 200, 500].filter((v, i, all) => v >= total && all.indexOf(v) === i).map((v) => (
-                      <button key={v} type="button" onClick={() => setReceived(String(v))}>
-                        {v === total ? 'Exacto' : money(v)}
+                  <div className="dl-quick" role="group" aria-label="Con cuánto paga">
+                    <button type="button" className={paid === total ? 'is-active' : ''} aria-pressed={paid === total} onClick={() => setReceived(String(total))}>
+                      <strong>Exacto</strong>
+                      <span className="money">{money(total)}</span>
+                    </button>
+                    {BILLS.map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        className={paid === v ? 'is-active' : ''}
+                        aria-pressed={paid === v}
+                        disabled={v < total}
+                        onClick={() => setReceived(String(v))}
+                      >
+                        <strong className="money">{money(v).replace('.00', '')}</strong>
+                        <span>{v < total ? 'No alcanza' : `Cambio ${money(v - total)}`}</span>
                       </button>
                     ))}
                   </div>
+                  <MoneyField label="Otro monto" hint="Escribe con cuánto paga si no es ninguno de arriba" value={received} onChange={setReceived} />
                   <div className={`dl-change ${short ? 'is-short' : ''}`}>
                     <span>{short ? 'Falta' : 'Cambio'}</span>
                     <strong className="money">{money(Math.abs(paid - total))}</strong>
                   </div>
                 </>
+              )}
+              </>
               )}
             </div>
           )}
@@ -195,9 +232,9 @@ export default function Deliver() {
       {verified && (
         <IonFooter className="action-footer ion-no-border">
           <IonToolbar>
-            <IonButton expand="block" color="success" className="btn-xl" disabled={short} onClick={confirm}>
+            <IonButton expand="block" color="success" className="btn-xl" disabled={short || busy} onClick={() => void confirm()}>
               <IonIcon slot="start" icon={checkmarkDone} />
-              Cobrar y entregar · {money(total)}
+              {prepaid ? `Entregar · pagado ${money(total)}` : `Cobrar y entregar · ${money(total)}`}
             </IonButton>
           </IonToolbar>
         </IonFooter>

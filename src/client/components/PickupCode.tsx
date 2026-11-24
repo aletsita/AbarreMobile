@@ -23,7 +23,8 @@ export function PickupCode({ order }: { order: Order }) {
 
   if (!code) return null;
 
-  if (order.status !== 'listo') {
+  // Pagado en línea: el código se ve desde que se confirma el pago (sin él no se entrega)
+  if (order.status !== 'listo' && !order.payment) {
     return (
       <div className="cl-code-wait">
         <IonIcon icon={qrCodeOutline} />
@@ -34,12 +35,13 @@ export function PickupCode({ order }: { order: Order }) {
 
   return (
     <section className="card cl-code" aria-label="Código para recoger">
-      <h2 className="section-title">Muestra este código en la caja</h2>
+      <h2 className="section-title">{order.status === 'listo' ? 'Muestra este código en la caja' : 'Tu código para recoger'}</h2>
+      {order.status !== 'listo' && <p className="muted">Te avisamos cuando esté listo. En la caja te lo pedirán para entregarte.</p>}
       <div className="cl-code-qr">{src ? <img src={src} width={220} height={220} alt="Código QR para recoger tu pedido" /> : <span />}</div>
       <strong className="cl-code-digits" aria-label={`Código ${code.split('').join(' ')}`}>
         {spacedCode(code)}
       </strong>
-      <p className="muted">Si no pueden escanearlo, dicta los 6 dígitos. No lo compartas: con él se entrega tu pedido.</p>
+      <p className="muted">Si no pueden escanearlo, dicta los 6 caracteres. No lo compartas: con él se entrega tu pedido.</p>
     </section>
   );
 }

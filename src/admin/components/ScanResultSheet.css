@@ -74,3 +74,10 @@
 .type-venta { background: var(--t-danger-bg); color: var(--ion-color-danger); }
 .type-entrada, .type-alta { background: var(--t-success-bg); color: var(--ion-color-success-shade); }
 .type-ajuste { background: var(--t-warning-bg); color: var(--t-warning-text); }
+
+/* Disponible para vender */
+.ss-warn { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; padding: 10px 12px; border-radius: var(--t-radius-sm); background: var(--t-warning-bg); color: var(--t-warning-text); font-size: 0.9rem; line-height: 1.4; }
+.ss-warn ion-icon { flex: none; margin-top: 1px; font-size: 18px; }
+.ss-warn.is-danger { background: var(--t-danger-bg); color: var(--ion-color-danger-shade); }
+.ss-dest { margin: 8px 2px 0; font-size: 0.86rem; color: var(--t-muted); text-align: center; }
+.ss-stepper button:disabled { opacity: 0.4; }
