@@ -1,7 +1,9 @@
-import { IonButton, IonContent, IonIcon, IonModal, IonPage, IonSearchbar, useIonAlert, useIonRouter } from '@ionic/react';
+import { isWeighed } from '../../../domain/weight';
+import { IonButton, IonContent, IonFab, IonFabButton, IonIcon, IonModal, IonPage, IonSearchbar, useIonRouter } from '@ionic/react';
 import { addOutline, alertCircleOutline, chevronForward, closeOutline, cubeOutline, scanOutline, trendingDownOutline } from 'ionicons/icons';
 import { useMemo, useState } from 'react';
 import { AppHeader } from '../../../components/AppHeader';
+import { useAppAlert } from '../../../components/AppAlert';
 import { EmptyState } from '../../../components/EmptyState';
 import { ProductThumb } from '../../../components/ProductThumb';
 import { money, normalize, stockLevel, type StockLevel } from '../../../data/models';
@@ -25,14 +27,15 @@ const FILTERS: { id: Filter; label: string }[] = [
 export default function Inventory() {
   const { products, findByBarcode } = useApp();
   const router = useIonRouter();
-  const [alert] = useIonAlert();
+  const showAlert = useAppAlert();
   const [text, setText] = useState('');
   const [filter, setFilter] = useState<Filter>('todos');
   const [scanning, setScanning] = useState(false);
   const [asking, setAsking] = useState(false);
 
   const count = (f: StockLevel) => products.filter((p) => stockLevel(p) === f).length;
-  const pieces = products.reduce((n, p) => n + p.stock, 0);
+  // Solo piezas: los kilos no se suman con piezas
+  const pieces = products.reduce((n, p) => n + (isWeighed(p) ? 0 : p.stock), 0);
 
   const list = useMemo(() => {
     const q = normalize(text);
@@ -52,44 +55,56 @@ export default function Inventory() {
       open(p);
       return;
     }
+    if (asking) return;
     setAsking(true);
-    alert({
-      header: 'Código no registrado',
-      message: `El código ${code} no está en tu inventario. ¿Quieres darlo de alta?`,
-      buttons: [
-        { text: 'Seguir escaneando', role: 'cancel' },
-        {
-          text: 'Dar de alta',
-          handler: () => {
-            setScanning(false);
-            create(code);
-          },
-        },
-      ],
-      onDidDismiss: () => setAsking(false),
+    void showAlert({
+      tone: 'warning',
+      title: 'Código no registrado',
+      code,
+      message: 'Este producto aún no está en tu inventario.',
+      primary: 'Dar de alta',
+      secondary: 'Seguir escaneando',
+    }).then((ok) => {
+      // La cámara se cierra antes de quitar la pausa para que no vuelva a leer el código al irse
+      if (ok) {
+        setScanning(false);
+        create(code);
+      }
+      setAsking(false);
     });
   };
 
   return (
     <IonPage>
-      <AppHeader
-        title="Inventario"
-        end={
-          <IonButton onClick={() => create()} aria-label="Producto nuevo">
-            <IonIcon slot="icon-only" icon={addOutline} />
-          </IonButton>
-        }
-      >
+      <AppHeader title="Inventario">
         <div className="inv-tools">
           <IonSearchbar value={text} onIonInput={(e) => setText(e.detail.value ?? '')} placeholder="Nombre, código o categoría" className="inv-search" />
-          <IonButton className="inv-scan" onClick={() => setScanning(true)}>
-            <IonIcon slot="start" icon={scanOutline} />
-            Escanear
-          </IonButton>
         </div>
       </AppHeader>
       <IonContent>
         <div className="page-pad is-narrow stack">
+          {/* Las dos acciones principales, grandes y a la vista */}
+          <div className="inv-actions">
+            <button type="button" className="inv-action is-scan" onClick={() => setScanning(true)}>
+              <span className="inv-action-icon">
+                <IonIcon icon={scanOutline} aria-hidden="true" />
+              </span>
+              <span>
+                <strong>Escanear</strong>
+                <small>Buscar o editar</small>
+              </span>
+            </button>
+            <button type="button" className="inv-action is-add" onClick={() => create()}>
+              <span className="inv-action-icon">
+                <IonIcon icon={addOutline} aria-hidden="true" />
+              </span>
+              <span>
+                <strong>Agregar</strong>
+                <small>Producto nuevo</small>
+              </span>
+            </button>
+          </div>
+
           <div className="inv-kpis">
             <button type="button" className={`inv-kpi ${filter === 'todos' ? 'is-active' : ''}`} onClick={() => setFilter('todos')}>
               <IonIcon icon={cubeOutline} />
@@ -151,6 +166,12 @@ export default function Inventory() {
             </ul>
           )}
         </div>
+        <div className="inv-fab-space" aria-hidden="true" />
+        <IonFab slot="fixed" vertical="bottom" horizontal="end" className="inv-fab">
+          <IonFabButton onClick={() => setScanning(true)} aria-label="Escanear un producto">
+            <IonIcon icon={scanOutline} />
+          </IonFabButton>
+        </IonFab>
       </IonContent>
 
       <IonModal isOpen={scanning} onDidDismiss={() => setScanning(false)} className="inv-scan-modal">

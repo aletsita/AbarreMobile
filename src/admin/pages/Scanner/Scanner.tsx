@@ -1,3 +1,4 @@
+import { isWeighed } from '../../../domain/weight';
 import {
   IonButton,
   IonContent,
@@ -9,7 +10,6 @@ import {
   IonSegmentButton,
   IonToggle,
   IonToolbar,
-  useIonAlert,
   useIonRouter,
   useIonToast,
   useIonViewDidEnter,
@@ -26,12 +26,12 @@ import {
   personOutline,
   receiptOutline,
   remove,
-  scanOutline,
   searchOutline,
   trashOutline,
 } from 'ionicons/icons';
 import { useRef, useState } from 'react';
 import { AppHeader } from '../../../components/AppHeader';
+import { useAppAlert } from '../../../components/AppAlert';
 import { BarcodeSearch } from '../../components/BarcodeSearch';
 import { EmptyState } from '../../../components/EmptyState';
 import { ProductThumb } from '../../../components/ProductThumb';
@@ -88,7 +88,7 @@ export default function Scanner() {
   const { products, sent, thisDevice, store, accounts, customers, addStock, findByBarcode, isLive, online } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
-  const [alert] = useIonAlert();
+  const showAlert = useAppAlert();
   const [mode, setMode] = useState<ScanMode>('vender');
   const [batchMode, setBatchMode] = useState(false);
   const [batch, setBatch] = useState<BatchLine[]>([]);
@@ -111,7 +111,7 @@ export default function Scanner() {
 
   const handleProduct = (p: ProductView, qty = 1) => {
     setLastScanned(p.name);
-    if (mode === 'inventario' && batchMode) {
+    if (mode === 'inventario' && batchMode && !isWeighed(p)) {
       setBatch((b) =>
         b.some((l) => l.product.id === p.id)
           ? b.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + qty } : l))
@@ -123,29 +123,30 @@ export default function Scanner() {
     }
   };
 
-  const lastSim = useRef<string>();
-  const simulateScan = () => {
-    const pool = products.filter((p) => p.barcode && p.barcode !== lastSim.current);
-    if (!pool.length) return;
-    const p = pool[Math.floor(Math.random() * pool.length)];
-    lastSim.current = p.barcode;
-    setLastScanned(p.barcode);
-    handleCode(p.barcode);
-  };
-
-  const handleCode = (code: string) => {
+  // Una sola alerta a la vez: mientras está abierta la cámara queda en pausa y no se atienden más lecturas
+  const askingRef = useRef(false);
+  const handleCode = async (code: string) => {
+    if (askingRef.current) return;
     const p = findByBarcode(code);
     if (p) return handleProduct(p);
+    askingRef.current = true;
     setAsking(true);
-    alert({
-      header: 'Código no registrado',
-      message: `El código ${code} no está en tu inventario.`,
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Dar de alta', handler: () => newProduct(code) },
-      ],
-      onDidDismiss: () => setAsking(false),
+    const create = await showAlert({
+      tone: 'warning',
+      title: 'Código no registrado',
+      code,
+      message: 'Este producto aún no está en tu inventario.',
+      primary: 'Dar de alta',
+      secondary: 'Cancelar',
     });
+    // Al dar de alta la cámara se apaga antes de quitar la pausa: así no vuelve a leer el mismo código
+    // mientras la pantalla se va (antes se reanudaba y reabría la alerta y la cámara encima del formulario)
+    if (create) {
+      setVisible(false);
+      newProduct(code);
+    }
+    askingRef.current = false;
+    setAsking(false);
   };
 
   const changeBatch = (id: string, delta: number) =>
@@ -230,14 +231,10 @@ export default function Scanner() {
             <ScannerView
               enabled={visible && !typing}
               paused={!!current || asking}
-              onCode={handleCode}
+              onCode={(code) => void handleCode(code)}
               lastScanned={lastScanned}
               hint={mode === 'vender' && onScreen ? `Se agrega a ${accountLabel(onScreen)}` : MODE_HINT[mode]}
             />
-            <button type="button" className="scanner-simulate" onClick={simulateScan} disabled={!!current || asking}>
-              <IonIcon icon={scanOutline} />
-              Simular escaneo
-            </button>
           </div>
 
           <div className="scan-panel">

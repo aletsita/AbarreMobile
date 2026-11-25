@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../../api';
 import { errorMessage } from '../../api/errors';
-import type { CatalogProduct, StockUpdate, StoreStatus } from '../../api/types';
+import type { CatalogProduct, CatalogUpdate, StockUpdate, StoreStatus } from '../../api/types';
+import { mergeCatalog } from './mergeCatalog';
 
 // Respaldo por si la conexión en vivo no avisa que la tienda abrió o cerró
 const STORE_POLL_MS = 20000;
@@ -18,6 +19,8 @@ interface CatalogState {
   setStore: (s: StoreStatus) => void;
   // Existencias que avisó el servidor en vivo (venta en caja, pedido, ajuste)
   applyStock: (list: StockUpdate[]) => void;
+  // Productos nuevos, cambiados, ocultos o borrados que avisó el servidor en vivo
+  applyCatalog: (u: CatalogUpdate) => void;
 }
 
 const Ctx = createContext<CatalogState | null>(null);
@@ -71,10 +74,12 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const applyCatalog = useCallback((u: CatalogUpdate) => setProducts((all) => mergeCatalog(all, u)), []);
+
   const byId = useCallback((id: string) => products.find((p) => p.id === id), [products]);
 
   return (
-    <Ctx.Provider value={{ products, loading, error, refresh, byId, store, closed: store ? !store.abierta : false, setStore, applyStock }}>
+    <Ctx.Provider value={{ products, loading, error, refresh, byId, store, closed: store ? !store.abierta : false, setStore, applyStock, applyCatalog }}>
       {children}
     </Ctx.Provider>
   );

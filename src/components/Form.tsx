@@ -125,3 +125,21 @@ export function FormSection({ title, text, children }: { title: string; text?: s
     </section>
   );
 }
+
+// Tarjeta de un formulario: ícono, título y los campos. La misma en todas las pantallas de captura
+export function FormCard({ title, icon, text, className, children }: { title: string; icon: string; text?: string; className?: string; children: ReactNode }) {
+  return (
+    <section className={`card form-card ${className ?? ''}`}>
+      <header className="form-card-head">
+        <span className="form-card-icon">
+          <IonIcon icon={icon} aria-hidden="true" />
+        </span>
+        <span>
+          <h2>{title}</h2>
+          {text && <p>{text}</p>}
+        </span>
+      </header>
+      {children}
+    </section>
+  );
+}

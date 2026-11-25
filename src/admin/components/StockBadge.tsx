@@ -1,3 +1,4 @@
+import { isWeighed, qtyText } from '../../domain/weight';
 import { stockLevel, type Product } from '../../data/models';
 import './StockBadge.css';
 
@@ -8,7 +9,7 @@ export function StockBadge({ product, compact }: { product: Product; compact?: b
   return (
     <span className={`stock-badge level-${level}`}>
       <span className="stock-dot" aria-hidden="true" />
-      {compact ? `${product.stock} pzas` : `${LABEL[level]} · ${product.stock}`}
+      {compact ? (isWeighed(product) ? qtyText(product.stock, 'peso') : `${product.stock} pzas`) : `${LABEL[level]} · ${qtyText(product.stock, product.saleType)}`}
     </span>
   );
 }

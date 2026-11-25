@@ -56,7 +56,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState(0);
   // Estado de cada pedido conocido; un aviso de producto agotado también cuenta como cambio
   const known = useRef(new Map<string, string>());
-  const { setStore, applyStock, refresh: refreshCatalog } = useCatalog();
+  const { setStore, applyStock, applyCatalog, refresh: refreshCatalog } = useCatalog();
   const [toast] = useIonToast();
   const router = useIonRouter();
 
@@ -140,12 +140,13 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     [refresh, refreshCatalog],
   );
 
-  useEffect(() => api.watchOrders(incoming, onLive, setStore, applyStock), [incoming, connection, setStore, applyStock, onLive]);
+  useEffect(() => api.watchOrders(incoming, onLive, setStore, applyStock, applyCatalog), [incoming, connection, setStore, applyStock, applyCatalog, onLive]);
 
-  // De vuelta al primer plano: datos frescos y conexión en vivo nueva
+  // De vuelta al primer plano: pedidos y catálogo frescos (lo que cambió en segundo plano no llegó) y conexión nueva
   useEffect(() => {
     const resume = () => {
       void refresh();
+      void refreshCatalog();
       setConnection((n) => n + 1);
     };
     if (Capacitor.isNativePlatform()) {
@@ -155,7 +156,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     const onVisible = () => document.visibilityState === 'visible' && resume();
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [refresh]);
+  }, [refresh, refreshCatalog]);
 
   return <Ctx.Provider value={{ orders, loading, loaded, error, live, refresh, upsert, incoming, create, load, change, cancel, dismiss, pay }}>{children}</Ctx.Provider>;
 }

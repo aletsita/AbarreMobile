@@ -64,6 +64,13 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   reembolsado: 'Reembolsado',
 };
 
+// Productos que cambiaron en el catálogo (evento `catalogo` del SSE): `productos` nuevos o con otro nombre,
+// precio, foto o categoría; `quitados` los que se ocultaron o se borraron
+export interface CatalogUpdate {
+  productos: CatalogProduct[];
+  quitados: string[];
+}
+
 // Existencia que cambió (evento `inventario` del SSE): disponible para pedir
 export interface StockUpdate {
   id: string;

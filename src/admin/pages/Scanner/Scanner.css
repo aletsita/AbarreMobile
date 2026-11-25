@@ -81,31 +81,6 @@
   .scan-panel { flex: 1 1 45%; max-width: 520px; }
 }
 .scan-camera { position: relative; }
-.scanner-simulate {
-  position: absolute;
-  z-index: 5;
-  right: 10px;
-  bottom: 10px;
-
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--ion-color-secondary);
-  color: #fff;
-  font: inherit;
-  font-weight: 700;
-  font-size: 0.88rem;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-}
-.scanner-simulate ion-icon { font-size: 20px; }
-.scanner-simulate:disabled { opacity: 0.5; }
-.scan-layout.is-typing .scanner-simulate { display: none; }
 
 /* Tarjeta de estado: conexión con la caja y la cuenta que tiene en pantalla (ahí cae lo que se envía) */
 .scan-status {

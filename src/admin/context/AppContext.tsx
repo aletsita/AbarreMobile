@@ -1,3 +1,5 @@
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import {
   createContext,
   useCallback,
@@ -28,6 +30,10 @@ import {
   type TicketConfig,
   type User,
 } from '../../data/models';
+import { api } from '../../api';
+import { ApiError, errorMessage } from '../../api/errors';
+import { isWeighed, qtyLabel, qtyText, roundQty } from '../../domain/weight';
+import { productInUse } from '../../data/productUse';
 import { ACTIVE_STATUSES, isPaidOnline, nextStatus, orderFolio, PICKUP_CODE, reservedStock, type CancelReason, type OrderRequest, type PickupOrder } from '../../data/pickup';
 import { CASH_MOVEMENTS, CREDIT_MOVEMENTS, CUSTOMERS, CUTS, DEVICES, MOVEMENTS, PRODUCTS, SALES, SHIFT, STORE, TICKET, USERS } from '../../data/seed';
 import { deviceModel } from '../lib/device';
@@ -129,11 +135,15 @@ type Action =
   | { type: 'REMOVE_SENT'; sentId: string }
   | { type: 'TICKET_ADD'; product: Product; qty: number; at: number }
   | { type: 'TICKET_QTY'; productId: string; delta: number }
+  // Peso exacto de una línea por peso (se vuelve a pesar)
+  | { type: 'TICKET_SET_QTY'; productId: string; qty: number }
   | { type: 'TICKET_REMOVE'; productId: string }
   | { type: 'TICKET_CLEAR' }
   | { type: 'CONFIRM_SALE'; sale: Sale }
   | { type: 'MARK_SALE_SYNCED'; saleId: string }
   | { type: 'UPSERT_PRODUCT'; product: Product; isNew: boolean; at: number }
+  // Borrado lógico: el producto se queda (las ventas y cortes lo nombran) pero ya no se vende ni se muestra
+  | { type: 'DELETE_PRODUCT'; id: string; at: number }
   | { type: 'ADD_STOCK'; entries: StockEntry[]; at: number; note: string }
   | { type: 'ADD_DEVICE'; device: Device }
   | { type: 'REMOVE_DEVICE'; id: string }
@@ -265,7 +275,7 @@ function loadData(): Data {
 
 function addToTicket(ticket: TicketLine[], product: Product, qty: number, source: TicketLine['source'], at: number) {
   if (ticket.some((l) => l.product.id === product.id)) {
-    return ticket.map((l) => (l.product.id === product.id ? { ...l, product, qty: l.qty + qty, source, flashAt: at } : l));
+    return ticket.map((l) => (l.product.id === product.id ? { ...l, product, qty: roundQty(l.qty + qty), source, flashAt: at } : l));
   }
   return [{ product, qty, source, flashAt: at }, ...ticket];
 }
@@ -291,9 +301,12 @@ function resetAccount(s: Data, at: number): AccountInfo {
 
 const inActive = (s: Data, x: SentItem) => !x.accountId || x.accountId === s.account.id;
 
+const isDeleted = (s: Data, id: string) => !!s.products.find((p) => p.id === id)?.deletedAt;
+
 function reducer(s: Data, a: Action): Data {
   switch (a.type) {
     case 'SCAN_TO_REGISTER': {
+      if (isDeleted(s, a.product.id)) return s;
       // El celular elige la cuenta; sin accountId, o si esa cuenta ya no está abierta, va a la activa
       const parkedTarget = a.accountId && a.accountId !== s.account.id ? s.parked.find((p) => p.id === a.accountId) : undefined;
       return {
@@ -332,12 +345,19 @@ function reducer(s: Data, a: Action): Data {
       };
     }
     case 'TICKET_ADD':
+      if (isDeleted(s, a.product.id)) return s;
       return { ...s, ticket: addToTicket(s.ticket, a.product, a.qty, 'manual', a.at) };
     case 'TICKET_QTY':
+      // +1 / −1 solo para piezas; lo pesado se corrige con TICKET_SET_QTY
       return {
         ...s,
-        ticket: s.ticket.map((l) => (l.product.id === a.productId ? { ...l, qty: l.qty + a.delta } : l)).filter((l) => l.qty > 0),
+        ticket: s.ticket
+          .map((l) => (l.product.id === a.productId && !isWeighed(l.product) ? { ...l, qty: l.qty + a.delta } : l))
+          .filter((l) => l.qty > 0),
       };
+    case 'TICKET_SET_QTY':
+      if (!(a.qty > 0)) return s;
+      return { ...s, ticket: s.ticket.map((l) => (l.product.id === a.productId && isWeighed(l.product) ? { ...l, qty: roundQty(a.qty) } : l)) };
     case 'TICKET_REMOVE':
       return { ...s, ticket: s.ticket.filter((l) => l.product.id !== a.productId) };
     case 'TICKET_CLEAR':
@@ -378,7 +398,7 @@ function reducer(s: Data, a: Action): Data {
         creditMovements: charge ? [charge, ...s.creditMovements] : s.creditMovements,
         products: s.products.map((p) => {
           const it = a.sale.items.find((i) => i.productId === p.id);
-          return it ? { ...p, stock: Math.max(0, p.stock - it.qty) } : p;
+          return it ? { ...p, stock: Math.max(0, roundQty(p.stock - it.qty)) } : p;
         }),
         // La venta de un pedido no sale de la cuenta abierta: esa se queda como está
         ...(a.sale.orderId
@@ -395,7 +415,9 @@ function reducer(s: Data, a: Action): Data {
       return { ...s, sales: s.sales.map((x) => (x.id === a.saleId ? { ...x, pending: false } : x)) };
     case 'UPSERT_PRODUCT': {
       const prev = s.products.find((p) => p.id === a.product.id);
-      const diff = a.product.stock - (prev?.stock ?? 0);
+      // Un cambio que llega tarde (de un celular sin conexión) no revive un producto borrado
+      if (prev?.deletedAt) return s;
+      const diff = roundQty(a.product.stock - (prev?.stock ?? 0));
       const move: Movement | null = !prev
         ? { id: uid(), productId: a.product.id, type: 'alta', qty: a.product.stock, date: iso(a.at), note: 'Alta del producto' }
         : diff !== 0
@@ -409,12 +431,15 @@ function reducer(s: Data, a: Action): Data {
         parked: s.parked.map((p) => ({ ...p, lines: p.lines.map((l) => (l.product.id === a.product.id ? { ...l, product: a.product } : l)) })),
       };
     }
+    case 'DELETE_PRODUCT':
+      if (!s.products.some((p) => p.id === a.id && !p.deletedAt)) return s;
+      return { ...s, products: s.products.map((p) => (p.id === a.id ? { ...p, deletedAt: iso(a.at), showInApp: false } : p)) };
     case 'ADD_STOCK':
       return {
         ...s,
         products: s.products.map((p) => {
           const qty = a.entries.filter((e) => e.productId === p.id).reduce((n, e) => n + e.qty, 0);
-          return qty ? { ...p, stock: p.stock + qty } : p;
+          return qty ? { ...p, stock: roundQty(p.stock + qty) } : p;
         }),
         movements: [
           ...a.entries.map((e) => ({ id: uid(), productId: e.productId, type: 'entrada' as const, qty: e.qty, date: iso(a.at), note: a.note })),
@@ -439,7 +464,7 @@ function reducer(s: Data, a: Action): Data {
       const items: SaleItem[] = [];
       for (const [id, n] of Object.entries(qty)) {
         const p = s.products.find((x) => x.id === id);
-        if (!p || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
+        if (!p || p.deletedAt || isWeighed(p) || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
         items.push({ productId: p.id, name: p.name, qty: n, price: p.price });
       }
       if (!items.length) return s;
@@ -500,7 +525,7 @@ function reducer(s: Data, a: Action): Data {
       const items: SaleItem[] = [];
       for (const [id, n] of Object.entries(qty)) {
         const p = s.products.find((x) => x.id === id);
-        if (!p || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
+        if (!p || p.deletedAt || isWeighed(p) || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
         items.push({ productId: p.id, name: p.name, qty: n, price: p.price });
       }
       if (!items.length) return s;
@@ -600,6 +625,8 @@ interface AppState extends Omit<Data, 'products' | 'sent' | 'version'> {
   // Pide y recoge desde el celular
   // Empezar a preparar: el servidor revisa que alcance el inventario; si no, dice qué falta
   advanceOrder: (id: string) => Promise<Outcome<null>>;
+  // Borrado lógico; lo revisa el servidor (no se borra lo que está en una cuenta o apartado en un pedido)
+  deleteProduct: (id: string) => Promise<Outcome<null>>;
   // Igual que en la caja: avisar al cliente que se agotó algo (el pedido sigue) o cancelarlo con un motivo
   reportShortage: (id: string, missing: string[]) => void;
   cancelOrder: (id: string, note: string) => void;
@@ -612,7 +639,7 @@ const Ctx = createContext<AppState | null>(null);
 
 // Qué cambió de un producto, en pocas palabras ("Precio $20.00 → $22.00 · Existencia 10 → 12")
 function productChanges(before: Product | undefined, after: Product) {
-  if (!before) return `Lo diste de alta · ${after.stock} pzas · ${money(after.price)}`;
+  if (!before) return `Lo diste de alta · ${qtyLabel(after.stock, after.saleType)} · ${money(after.price)}${isWeighed(after) ? '/kg' : ''}`;
   const parts: string[] = [];
   if (before.name !== after.name) parts.push(`Nombre: ${after.name}`);
   if (before.price !== after.price) parts.push(`Precio ${money(before.price)} → ${money(after.price)}`);
@@ -733,6 +760,19 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
     return () => ch.close();
   }, [server]);
 
+  // De vuelta al primer plano: lo que cambió en la caja mientras tanto (productos nuevos, borrados, precios)
+  // llega con un SNAPSHOT nuevo
+  useEffect(() => {
+    const resume = () => channel.current?.post({ type: 'WHO' });
+    if (Capacitor.isNativePlatform()) {
+      const h = App.addListener('appStateChange', ({ isActive }) => isActive && resume());
+      return () => void h.then((x) => x.remove());
+    }
+    const onVisible = () => document.visibilityState === 'visible' && resume();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   useEffect(() => {
     const ch = channel.current;
     if (!ch || !presenceKey) return;
@@ -835,11 +875,11 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
         let pieces = 0;
         op.entries.forEach((e) => {
           const p = byId.get(e.productId);
-          pieces += e.qty;
-          if (p) byId.set(p.id, { ...p, stock: p.stock + e.qty, sync: status });
+          pieces = roundQty(pieces + e.qty);
+          if (p) byId.set(p.id, { ...p, stock: roundQty(p.stock + e.qty), sync: status });
         });
         const first = byId.get(op.entries[0]?.productId ?? '');
-        const title = op.entries.length === 1 && first ? `+${pieces} ${first.name}` : `${op.entries.length} productos · +${pieces} pzas`;
+        const title = op.entries.length === 1 && first ? `+${qtyText(pieces, first.saleType)} ${first.name}` : `${op.entries.length} productos · +${pieces} pzas`;
         pending.push({ id: op.id, kind: op.kind, title, detail: 'Entrada de inventario', at: op.at, status });
       } else {
         extraSent.unshift({ id: op.id, product: op.product, qty: op.qty, at: op.at, status, deviceId: deviceId ?? '' });
@@ -848,7 +888,7 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
     }
 
     const createdSet = new Set(created);
-    const products = [...created.map((id) => byId.get(id)!), ...[...byId.values()].filter((p) => !createdSet.has(p.id))];
+    const products = [...created.map((id) => byId.get(id)!), ...[...byId.values()].filter((p) => !createdSet.has(p.id))].filter((p) => !p.deletedAt);
     const sent: SentView[] = [...extraSent, ...data.sent];
     return { products, sent, pending: pending.reverse() };
   }, [data.products, data.sent, queue, uploading, deviceId]);
@@ -893,7 +933,7 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
       log({
         kind: 'stock',
         title: entries.length === 1 && first ? first.name : `${entries.length} productos`,
-        detail: `Entrada de inventario · +${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}`,
+        detail: `Entrada de inventario · +${entries.length === 1 && first ? qtyLabel(pieces, first.saleType) : qtyLabel(pieces)}`,
       });
       return run({ id: uid(), kind: 'stock', entries, at: Date.now() });
     },
@@ -907,6 +947,21 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
     },
     [run, log],
   );
+
+  // Se borra con la sesión del personal (el servidor responde 403 a cualquier otro) y él avisa a la caja
+  const deleteProduct = useCallback(async (id: string): Promise<Outcome<null>> => {
+    const s = dataRef.current;
+    if (!s.products.some((p) => p.id === id && !p.deletedAt)) return { ok: false, code: 'no-existe', message: 'Ese producto ya no existe.' };
+    const busy = productInUse(id, s);
+    if (busy) return { ok: false, code: 'producto-en-uso', message: busy };
+    try {
+      await api.deleteProduct(id);
+      localDispatch({ type: 'DELETE_PRODUCT', id, at: Date.now() });
+      return { ok: true, value: null };
+    } catch (e) {
+      return { ok: false, code: e instanceof ApiError ? e.code : undefined, message: errorMessage(e, 'No se pudo borrar el producto.') };
+    }
+  }, []);
 
   const advanceOrder = useCallback(
     async (id: string): Promise<Outcome<null>> => {
@@ -1058,6 +1113,7 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
     findByBarcode,
     movementsFor,
     advanceOrder,
+    deleteProduct,
     reportShortage,
     cancelOrder,
     deliverOrder,
