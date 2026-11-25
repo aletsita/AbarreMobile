@@ -1,4 +1,5 @@
-import { IonButton, IonContent, IonIcon, IonLabel, IonPage, IonSegment, IonSegmentButton, IonSpinner, useIonAlert } from '@ionic/react';
+import { IonButton, IonContent, IonIcon, IonLabel, IonPage, IonSegment, IonSegmentButton, IonSpinner } from '@ionic/react';
+import { useAppAlert } from '../../components/AppAlert';
 import { callOutline, contrastOutline, logOutOutline, mailOutline, moonOutline, notificationsOffOutline, notificationsOutline, sunnyOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
 import { errorMessage } from '../../api/errors';
@@ -18,7 +19,7 @@ const PERMISSION_TEXT: Record<NotifyPermission, string> = {
 
 export default function Perfil() {
   const { session, logout, profile } = useSession();
-  const [alert] = useIonAlert();
+  const showAlert = useAppAlert();
   const [theme, setTheme] = useThemeMode();
   const [me, setMe] = useState<Customer | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,14 +31,13 @@ export default function Perfil() {
   }, []);
 
   const confirmLogout = () =>
-    alert({
-      header: '¿Cerrar sesión?',
+    void showAlert({
+      tone: 'warning',
+      title: '¿Cerrar sesión?',
       message: 'Tu carrito se queda guardado en este teléfono para la próxima vez que entres.',
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Cerrar sesión', role: 'destructive', handler: () => void logout('usuario') },
-      ],
-    });
+      primary: { text: 'Cerrar sesión', danger: true },
+      secondary: 'Cancelar',
+    }).then((ok) => ok && void logout('usuario'));
 
   const name = me?.name ?? session?.name ?? '';
 

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo de Abarré (toldo + letra a) en blanco, de public/icons/icon.svg. Se reduce a 2/3 alrededor del centro
+     para quedar dentro de la zona segura del ícono adaptable (el teléfono lo recorta en círculo, gota, etc.) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group
+        android:pivotX="256"
+        android:pivotY="256"
+        android:scaleX="0.6667"
+        android:scaleY="0.6667">
+        <!-- Barra del toldo -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M105,104h302a9,9 0,0 1,0 18h-302a9,9 0,0 1,0 -18z" />
+        <!-- Gajos del toldo -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M104,122h76v58a38,38 0,0 1,-76 0z" />
+        <path
+            android:fillAlpha="0.55"
+            android:fillColor="#FFFFFF"
+            android:pathData="M180,122h76v58a38,38 0,0 1,-76 0z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M256,122h76v58a38,38 0,0 1,-76 0z" />
+        <path
+            android:fillAlpha="0.55"
+            android:fillColor="#FFFFFF"
+            android:pathData="M332,122h76v58a38,38 0,0 1,-76 0z" />
+        <!-- Letra a: anillo y asta -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="40"
+            android:pathData="M242,282a64,64 0,1 1,0 128a64,64 0,1 1,0 -128z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M306,262a20,20 0,0 1,20 20v128a20,20 0,0 1,-40 0v-128a20,20 0,0 1,20 -20z" />
+    </group>
+</vector>

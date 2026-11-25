@@ -60,7 +60,7 @@ En la app nativa la red local usa `http://`, así que compila en modo desarrollo
 npm run dev    # http://localhost:5174
 ```
 
-Usa el puerto 5174 para no chocar con la web (5173). Ese origen ya está permitido en el CORS del servidor. En el navegador el escáner usa la cámara web (`BarcodeDetector`). **Simular escaneo** y la captura manual funcionan igual.
+Usa el puerto 5174 para no chocar con la web (5173). Ese origen ya está permitido en el CORS del servidor. En el navegador el escáner usa la cámara web (`BarcodeDetector`). Sin cámara, escribe el código en el campo de búsqueda del escáner.
 
 ## Android
 

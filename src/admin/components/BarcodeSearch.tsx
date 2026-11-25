@@ -1,3 +1,4 @@
+import { isWeighed, qtyText } from '../../domain/weight';
 import { IonIcon } from '@ionic/react';
 import { addCircleOutline, barcodeOutline, closeCircle, keypadOutline, textOutline } from 'ionicons/icons';
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
@@ -148,7 +149,7 @@ export const BarcodeSearch = forwardRef<BarcodeSearchHandle, Props>(function Bar
                 <span className="bsearch-name">
                   <strong>{p.name}</strong>
                   <span>
-                    {p.barcode} · {p.stock} pzas {p.sync && <SyncBadge state={p.sync} compact />}
+                    {p.barcode} · {isWeighed(p) ? qtyText(p.stock, 'peso') : `${p.stock} pzas`} {p.sync && <SyncBadge state={p.sync} compact />}
                   </span>
                 </span>
                 <span className="bsearch-price money">

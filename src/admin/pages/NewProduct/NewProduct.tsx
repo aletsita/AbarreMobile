@@ -1,3 +1,5 @@
+import { roundQty, type SaleType } from '../../../domain/weight';
+import { SaleTypeField } from '../../components/SaleTypeField';
 import {
   IonButton,
   IonContent,
@@ -6,29 +8,33 @@ import {
   IonPage,
   IonSpinner,
   IonToolbar,
-  useIonAlert,
   useIonRouter,
   useIonToast,
   useIonViewDidEnter,
+  useIonViewWillEnter,
   useIonViewWillLeave,
 } from '@ionic/react';
 import {
   add,
-  alertCircleOutline,
   barcodeOutline,
   cameraOutline,
-  checkmarkCircleOutline,
   closeOutline,
-  informationCircleOutline,
+  cubeOutline,
+  gridOutline,
   paperPlaneOutline,
+  pricetagOutline,
+  pricetagsOutline,
   remove,
+  scaleOutline,
   sparklesOutline,
 } from 'ionicons/icons';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { autofillProduct } from '../../../application/lookupProduct';
 import { AppHeader } from '../../../components/AppHeader';
-import { MoneyField, TextField } from '../../../components/Form';
+import { Notice } from '../../../components/Notice';
+import { useAppAlert } from '../../../components/AppAlert';
+import { FormCard, MoneyField, TextField } from '../../../components/Form';
 import { generateInternalEan13 } from '../../../domain/ean13';
 import { PhotoPicker } from '../../components/PhotoPicker';
 import { useApp } from '../../context/AppContext';
@@ -37,33 +43,72 @@ import { ScannerView } from '../../scanner/ScannerView';
 import { CATEGORIES, money, uid, type Product } from '../../../data/models';
 import './NewProduct.css';
 
-type Notice = { tone: 'ok' | 'info'; text: string };
+type LookupNotice = { tone: 'ok' | 'info'; text: string };
 
 export default function NewProduct() {
   const { search } = useLocation();
   const { saveProduct, sendToRegister, findByBarcode, store, thisDevice } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
-  const [alert] = useIonAlert();
-  const fromScan = new URLSearchParams(search).get('codigo') ?? '';
+  const showAlert = useAppAlert();
+  const codeInUrl = () => (new URLSearchParams(search).get('codigo') ?? '').replace(/\s/g, '');
 
+  // Código con el que llegó desde el escáner (no registrado); se vuelve a leer cada vez que se entra
+  const [fromScan, setFromScan] = useState(codeInUrl);
   const [barcode, setBarcode] = useState(fromScan);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Abarrotes');
   const [cost, setCost] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState(1);
+  const [saleType, setSaleType] = useState<SaleType>('pieza');
+  // Por peso la existencia se escribe en kilos (texto tal cual, "1." no debe volverse 1)
+  const [kgStock, setKgStock] = useState('');
+  const weighed = saleType === 'peso';
   const [photo, setPhoto] = useState<string>();
   const [tried, setTried] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   // Alta con la cámara: lee el código y trata de llenar el resto desde una base pública
   const [scanning, setScanning] = useState(false);
   const [visible, setVisible] = useState(true);
   const [looking, setLooking] = useState(false);
-  const [notice, setNotice] = useState<Notice>();
+  const [notice, setNotice] = useState<LookupNotice>();
   const lookupId = useRef(0);
   useIonViewDidEnter(() => setVisible(true));
-  useIonViewWillLeave(() => setVisible(false));
+
+  // Ionic deja la pantalla montada entre visitas: el formulario se reinicia al entrar y al salir para no
+  // arrastrar el código, los datos autocompletados ni los errores de la vez anterior
+  const reset = (code: string) => {
+    lookupId.current++;
+    setFromScan(code);
+    setBarcode(code);
+    setName('');
+    setCategory('Abarrotes');
+    setCost('');
+    setPrice('');
+    setStock(1);
+    setSaleType('pieza');
+    setKgStock('');
+    setPhoto(undefined);
+    setTried(false);
+    setScanning(false);
+    setLooking(false);
+    setNotice(undefined);
+    setSaving(false);
+    savingRef.current = false;
+  };
+  useIonViewWillEnter(() => {
+    const code = codeInUrl();
+    reset(code);
+    // Llegó desde el escáner con un código que no existe: se buscan sus datos
+    if (code && !findByBarcode(code)) void lookup(code);
+  }, [search]);
+  useIonViewWillLeave(() => {
+    setVisible(false);
+    reset('');
+  });
 
   const lookup = async (code: string) => {
     const id = ++lookupId.current;
@@ -100,23 +145,18 @@ export default function NewProduct() {
       lookupId.current++;
       setLooking(false);
       setNotice(undefined);
-      alert({
-        header: 'Ya está en tu inventario',
-        message: `El código ${code} es de ${existing.name}. ¿Quieres editarlo en lugar de darlo de alta otra vez?`,
-        buttons: [
-          { text: 'Cancelar', role: 'cancel' },
-          { text: 'Editar producto', handler: () => router.push(`/movil/producto/${existing.id}`, 'forward', 'replace') },
-        ],
-      });
+      void showAlert({
+        tone: 'info',
+        title: 'Ya está en tu inventario',
+        code,
+        message: `Este código es de ${existing.name}. Puedes editarlo en lugar de darlo de alta otra vez.`,
+        primary: 'Editar producto',
+        secondary: 'Cancelar',
+      }).then((edit) => edit && router.push(`/movil/producto/${existing.id}`, 'forward', 'replace'));
       return;
     }
     void lookup(code);
   };
-
-  // Llegó desde el escáner con un código que no existe: se buscan sus datos una vez
-  useEffect(() => {
-    if (fromScan && !findByBarcode(fromScan)) void lookup(fromScan);
-  }, []);
 
   const generateCode = () => {
     lookupId.current++;
@@ -136,22 +176,42 @@ export default function NewProduct() {
   const invalid = Boolean(errors.barcode || errors.name || errors.price);
   const margin = Number(price) - Number(cost);
 
-  const save = (toRegister: boolean) => {
+  const save = async (toRegister: boolean) => {
+    // Un solo guardado aunque se toque dos veces el botón
+    if (savingRef.current) return;
     setTried(true);
     if (invalid) return;
+    savingRef.current = true;
+    setSaving(true);
     const product: Product = {
       id: `p${uid()}`,
       name: name.trim(),
       category,
       price: Number(price),
       cost: Number(cost) || 0,
-      stock,
-      minStock: 3,
+      stock: weighed ? roundQty(Number(kgStock) || 0) : stock,
+      minStock: weighed ? 1 : 3,
+      ...(weighed ? { saleType: 'peso' as const } : {}),
       barcode: barcode.trim(),
       photo,
     };
-    const r = saveProduct(product, true);
-    if (toRegister) sendToRegister(product, 1);
+    let r: ReturnType<typeof saveProduct>;
+    try {
+      r = saveProduct(product, true);
+      // Lo pesado no se manda sin peso: se agrega en la caja o desde el escáner
+      if (toRegister && !weighed) sendToRegister(product, 1);
+    } catch {
+      // No se guardó: el formulario se queda como está para corregir o reintentar
+      savingRef.current = false;
+      setSaving(false);
+      await showAlert({
+        tone: 'error',
+        title: 'No se guardó el producto',
+        message: 'Algo falló al guardarlo en el celular. Revisa los datos e inténtalo de nuevo.',
+        primary: 'Entendido',
+      });
+      return;
+    }
     const offline = r === 'pendiente';
     toast({
       message: offline
@@ -164,8 +224,9 @@ export default function NewProduct() {
       position: 'top',
       cssClass: 'toast-app',
     });
-    if (router.canGoBack()) router.goBack();
-    else router.push('/movil/escaner', 'back');
+    // Formulario limpio y al inventario, donde ya aparece el producto nuevo
+    reset('');
+    router.push('/movil/inventario', 'root', 'replace');
   };
 
   return (
@@ -173,18 +234,18 @@ export default function NewProduct() {
       <AppHeader title="Producto nuevo" backHref="/movil/escaner" />
       <IonContent>
         <div className="page-pad is-narrow stack">
+          {tried && invalid && (
+            <Notice tone="error" title="Faltan datos">
+              Revisa los campos marcados en rojo.
+            </Notice>
+          )}
           {fromScan && (
-            <section className="np-alert">
-              <IonIcon icon={alertCircleOutline} />
-              <div>
-                <strong>Código no registrado</strong>
-                <p>Llena los datos para agregarlo a tu inventario.</p>
-              </div>
-            </section>
+            <Notice tone="warning" title="Código no registrado">
+              Llena los datos para agregarlo a tu inventario.
+            </Notice>
           )}
 
-          <section className="card np-group">
-            <h2 className="np-group-title">Datos del producto</h2>
+          <FormCard title="Datos del producto" icon={pricetagsOutline}>
             <div className="np-top">
               <PhotoPicker value={photo} onChange={setPhoto} />
               <TextField
@@ -213,16 +274,13 @@ export default function NewProduct() {
               </div>
             )}
             {looking && (
-              <p className="np-notice" role="status">
+              <p className="np-looking" role="status">
                 <IonSpinner name="crescent" />
                 Buscando los datos del producto…
               </p>
             )}
             {notice && !looking && (
-              <p className={`np-notice is-${notice.tone}`} role="status">
-                <IonIcon icon={notice.tone === 'ok' ? checkmarkCircleOutline : informationCircleOutline} />
-                {notice.text}
-              </p>
+              <Notice tone={notice.tone === 'ok' ? 'success' : 'info'}>{notice.text}</Notice>
             )}
 
             <TextField
@@ -233,10 +291,9 @@ export default function NewProduct() {
               autoCapitalize="sentences"
               onChange={setName}
             />
-          </section>
+          </FormCard>
 
-          <section className="card np-group">
-            <h2 className="np-group-title">Categoría</h2>
+          <FormCard title="Categoría" icon={gridOutline}>
             <div className="np-chips">
               {CATEGORIES.map((c) => (
                 <button key={c} type="button" className={c === category ? 'is-active' : ''} aria-pressed={c === category} onClick={() => setCategory(c)}>
@@ -244,47 +301,60 @@ export default function NewProduct() {
                 </button>
               ))}
             </div>
-          </section>
+          </FormCard>
 
-          <section className="card np-group">
-            <h2 className="np-group-title">Precio</h2>
+          <FormCard title="Se vende por" icon={scaleOutline}>
+            <SaleTypeField value={saleType} onChange={setSaleType} />
+          </FormCard>
+
+          <FormCard title="Precio" icon={pricetagOutline}>
             <div className="form-grid np-grid">
               <MoneyField label="Precio de compra" value={cost} error={errors.cost} onChange={setCost} />
-              <MoneyField label="Precio de venta" className="np-price" value={price} error={tried && errors.price} onChange={setPrice} />
+              <MoneyField label={weighed ? 'Precio por kg' : 'Precio de venta'} className="np-price" value={price} error={tried && errors.price} onChange={setPrice} />
             </div>
             {Number(price) > 0 && Number(cost) > 0 && margin > 0 && (
-              <p className="np-margin">Ganas <strong>{money(margin)}</strong> por pieza ({Math.round((margin / Number(price)) * 100)} %)</p>
+              <p className="np-margin">Ganas <strong>{money(margin)}</strong> por {weighed ? 'kilo' : 'pieza'} ({Math.round((margin / Number(price)) * 100)} %)</p>
             )}
-          </section>
+          </FormCard>
 
-          <section className="card np-group np-stock">
-            <h2 className="np-group-title">Existencia inicial</h2>
-            <div className="np-stepper">
-              <button type="button" onClick={() => setStock((s) => Math.max(0, s - 1))} aria-label="Menos">
-                <IonIcon icon={remove} />
-              </button>
-              <input
-                className="money"
-                inputMode="numeric"
-                aria-label="Existencia inicial"
-                value={stock}
-                onChange={(e) => setStock(Number(e.target.value.replace(/\D/g, '')) || 0)}
+          <FormCard title="Existencia inicial" icon={cubeOutline} className="np-stock">
+            {weighed ? (
+              <TextField
+                label="Kilos en tienda"
+                suffix="kg"
+                inputMode="decimal"
+                placeholder="0.000"
+                value={kgStock}
+                onChange={(v) => /^\d*[.,]?\d{0,3}$/.test(v) && setKgStock(v.replace(',', '.'))}
               />
-              <button type="button" onClick={() => setStock((s) => s + 1)} aria-label="Más">
-                <IonIcon icon={add} />
-              </button>
-            </div>
-          </section>
+            ) : (
+              <div className="np-stepper">
+                <button type="button" onClick={() => setStock((s) => Math.max(0, s - 1))} aria-label="Menos">
+                  <IonIcon icon={remove} />
+                </button>
+                <input
+                  className="money"
+                  inputMode="numeric"
+                  aria-label="Existencia inicial"
+                  value={stock}
+                  onChange={(e) => setStock(Number(e.target.value.replace(/\D/g, '')) || 0)}
+                />
+                <button type="button" onClick={() => setStock((s) => s + 1)} aria-label="Más">
+                  <IonIcon icon={add} />
+                </button>
+              </div>
+            )}
+          </FormCard>
         </div>
       </IonContent>
 
       <IonFooter className="action-footer ion-no-border">
         <IonToolbar>
-          <IonButton expand="block" className="btn-xl" onClick={() => save(false)}>
-            Guardar producto
+          <IonButton expand="block" className="btn-xl" onClick={() => void save(false)} disabled={saving}>
+            {saving ? <IonSpinner name="crescent" /> : 'Guardar producto'}
           </IonButton>
-          {thisDevice && (
-            <IonButton expand="block" fill="clear" color="secondary" className="btn-lg np-only" onClick={() => save(true)}>
+          {thisDevice && !weighed && (
+            <IonButton expand="block" fill="clear" color="secondary" className="btn-lg np-only" onClick={() => void save(true)} disabled={saving}>
               <IonIcon slot="start" icon={paperPlaneOutline} />
               Guardar y enviar a la caja
             </IonButton>

@@ -1,7 +1,8 @@
 import { IonIcon, IonSpinner } from '@ionic/react';
-import { cameraOutline, checkmarkCircle, closeOutline, flashlight, flashlightOutline, refreshOutline, scanOutline, videocamOffOutline } from 'ionicons/icons';
-import { useEffect, useState } from 'react';
+import { cameraOutline, checkmarkCircle, closeOutline, flashlight, flashlightOutline, refreshOutline, scanOutline, settingsOutline, videocamOffOutline } from 'ionicons/icons';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { createRepeatGuard } from '../../domain/scanGuard';
 import { nativeScanner, useScanner } from './scanner';
 import './ScannerView.css';
 
@@ -17,13 +18,16 @@ interface Props {
 
 export function ScannerView({ enabled, paused, onCode, hint = 'Apunta al código de barras', lastScanned, square, formats }: Props) {
   const [hits, setHits] = useState(0);
+  // Vive lo mismo que la pantalla: al pausar y reanudar la cámara, el último código sigue bloqueado unos segundos
+  const guard = useRef(createRepeatGuard());
   const cam = useScanner({
     enabled,
     paused,
     formats,
     onCode: (code) => {
+      if (!guard.current.accept(code)) return;
       setHits((n) => n + 1);
-      onCode(code);
+      onCode(code.trim());
     },
   });
 
@@ -121,21 +125,21 @@ export function ScannerView({ enabled, paused, onCode, hint = 'Apunta al código
           ) : cam.status === 'sin-permiso' ? (
             <>
               <IonIcon icon={videocamOffOutline} />
-              <strong>Sin permiso para la cámara</strong>
+              <strong>Falta el permiso de la cámara</strong>
               <span>
                 {nativeScanner
-                  ? 'Toca Reintentar para abrir los ajustes de la app y permitir la cámara, o escribe el código.'
-                  : 'Permite el acceso en el navegador o escribe el código.'}
+                  ? 'Permite la cámara en los ajustes de la app. Mientras, puedes escribir el código abajo.'
+                  : 'Permite la cámara en el navegador (ícono junto a la dirección). Mientras, puedes escribir el código abajo.'}
               </span>
               <button type="button" onClick={cam.retry}>
-                <IonIcon icon={refreshOutline} /> Reintentar
+                <IonIcon icon={nativeScanner ? settingsOutline : refreshOutline} /> {nativeScanner ? 'Abrir ajustes' : 'Reintentar'}
               </button>
             </>
           ) : (
             <>
               <IonIcon icon={cameraOutline} />
-              <strong>Cámara no disponible</strong>
-              <span>Escribe el código de barras abajo.</span>
+              <strong>No hay cámara disponible</strong>
+              <span>Este equipo no tiene cámara o la está usando otra app. Escribe el código de barras abajo.</span>
               <button type="button" onClick={cam.retry}>
                 <IonIcon icon={refreshOutline} /> Reintentar
               </button>

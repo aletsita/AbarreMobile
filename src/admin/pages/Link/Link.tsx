@@ -7,10 +7,10 @@ import {
   IonSegment,
   IonSegmentButton,
   IonSpinner,
-  useIonAlert,
   useIonViewDidEnter,
   useIonViewWillLeave,
 } from '@ionic/react';
+import { useAppAlert } from '../../../components/AppAlert';
 import {
   alertCircleOutline,
   checkmarkCircle,
@@ -58,7 +58,7 @@ function errorText(r: Exclude<LinkResult, 'ok'>, server: string) {
 
 export default function Link() {
   const { thisDevice, store, linkWithCode, unlink, server, serverStatus } = useApp();
-  const [alert] = useIonAlert();
+  const showAlert = useAppAlert();
   const { session, logout } = useSession();
   const [method, setMethod] = useState<Method>('qr');
   const [code, setCode] = useState('');
@@ -108,14 +108,13 @@ export default function Link() {
   };
 
   const confirmUnlink = () =>
-    alert({
-      header: '¿Desvincular este celular?',
+    void showAlert({
+      tone: 'warning',
+      title: '¿Desvincular este celular?',
       message: `Dejará de enviar productos a ${store.register}.`,
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Desvincular', role: 'destructive', handler: unlink },
-      ],
-    });
+      primary: { text: 'Desvincular', danger: true },
+      secondary: 'Cancelar',
+    }).then((ok) => ok && unlink());
 
   const statusChip = server && (
     <span className={`link-status is-${serverStatus}`}>

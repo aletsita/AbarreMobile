@@ -1,0 +1,34 @@
+/* Hoja para elegir la foto: dos tarjetas grandes, cámara o galería */
+ion-modal.photo-sheet { --height: auto; --border-radius: 22px; }
+ion-modal.photo-sheet::part(content) { padding-bottom: env(safe-area-inset-bottom); }
+.photo-sheet-body { display: flex; flex-direction: column; gap: 14px; padding: 18px 16px 16px; }
+.photo-sheet-head { display: flex; align-items: center; gap: 12px; }
+.photo-sheet-head img { flex: none; width: 52px; height: 52px; border-radius: 12px; object-fit: cover; }
+.photo-sheet-head span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.photo-sheet-head strong { font-size: 1.08rem; font-weight: 800; color: var(--t-ink); }
+.photo-sheet-head small { font-size: 0.86rem; color: var(--t-muted); line-height: 1.35; }
+.photo-sheet-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.photo-sheet-options button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 10px 16px;
+  border: 1.5px solid var(--t-border-strong);
+  border-radius: var(--t-radius);
+  background: var(--t-surface);
+  color: var(--t-ink);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.photo-sheet-options button:active { border-color: var(--ion-color-primary); background: var(--t-primary-bg); }
+.photo-sheet-options strong { font-size: 0.98rem; }
+.photo-sheet-options small { font-size: 0.8rem; color: var(--t-muted); }
+.photo-sheet-icon { display: grid; place-items: center; width: 54px; height: 54px; margin-bottom: 6px; border-radius: 16px; background: var(--t-primary-bg); color: var(--ion-color-primary); font-size: 28px; }
+.photo-sheet-icon.is-gallery { background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.photo-sheet-remove,
+.photo-sheet-cancel { display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; border: 0; border-radius: var(--t-radius-sm); font: inherit; font-weight: 700; cursor: pointer; }
+.photo-sheet-remove { background: var(--t-danger-bg); color: var(--ion-color-danger); }
+.photo-sheet-remove ion-icon { font-size: 19px; }
+.photo-sheet-cancel { background: var(--t-surface-2); color: var(--t-ink); }

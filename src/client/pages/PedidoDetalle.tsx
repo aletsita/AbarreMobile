@@ -1,4 +1,5 @@
-import { IonButton, IonContent, IonIcon, IonPage, IonRefresher, IonRefresherContent, IonSpinner, useIonAlert, useIonRouter, useIonToast } from '@ionic/react';
+import { IonButton, IonContent, IonIcon, IonPage, IonRefresher, IonRefresherContent, IonSpinner, useIonRouter, useIonToast } from '@ionic/react';
+import { useAppAlert } from '../../components/AppAlert';
 import { alertCircleOutline, cashOutline, checkmarkOutline, closeCircleOutline, createOutline, removeCircleOutline, swapHorizontalOutline, trashOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -26,7 +27,7 @@ const STEP_TEXT: Record<OrderStatus, string> = {
 function IssueNotice({ order }: { order: Order }) {
   const { change, cancel: cancelOrder } = useOrders();
   const { closed } = useCatalog();
-  const [alert] = useIonAlert();
+  const showAlert = useAppAlert();
   const [toast] = useIonToast();
   const [busy, setBusy] = useState(false);
   const missingIds = order.issue?.missing ?? [];
@@ -46,27 +47,22 @@ function IssueNotice({ order }: { order: Order }) {
   };
 
   const removeMissing = () =>
-    alert({
-      header: 'Quitar lo agotado',
+    void showAlert({
+      tone: 'info',
+      title: 'Quitar lo agotado',
       message: `Tu pedido seguirá con ${kept.length} ${kept.length === 1 ? 'producto' : 'productos'}.`,
-      buttons: [
-        { text: 'Volver', role: 'cancel' },
-        {
-          text: 'Quitar y seguir',
-          handler: () => void run(() => change(order.id, kept.map((i) => ({ productId: i.productId, qty: i.qty }))), 'Listo. La tienda sigue con tu pedido.'),
-        },
-      ],
-    });
+      primary: 'Quitar y seguir',
+      secondary: 'Volver',
+    }).then((ok) => ok && void run(() => change(order.id, kept.map((i) => ({ productId: i.productId, qty: i.qty }))), 'Listo. La tienda sigue con tu pedido.'));
 
   const cancel = () =>
-    alert({
-      header: '¿Cancelar tu pedido?',
+    void showAlert({
+      tone: 'warning',
+      title: '¿Cancelar tu pedido?',
       message: isPaid(order) ? 'La tienda dejará de prepararlo y te devolverá tu dinero.' : 'La tienda dejará de prepararlo. No se te cobra nada.',
-      buttons: [
-        { text: 'Volver', role: 'cancel' },
-        { text: 'Cancelar pedido', role: 'destructive', handler: () => void run(() => cancelOrder(order.id), `Cancelaste el pedido ${order.folio}`) },
-      ],
-    });
+      primary: { text: 'Cancelar pedido', danger: true },
+      secondary: 'Volver',
+    }).then((ok) => ok && void run(() => cancelOrder(order.id), `Cancelaste el pedido ${order.folio}`));
 
   return (
     <section className="card cl-cancel is-issue" role="alert">
@@ -111,13 +107,14 @@ function IssueNotice({ order }: { order: Order }) {
 // El cliente puede cancelar mientras la tienda no se lo entregue
 function CancelButton({ order }: { order: Order }) {
   const { cancel } = useOrders();
-  const [alert] = useIonAlert();
+  const showAlert = useAppAlert();
   const [toast] = useIonToast();
   const [busy, setBusy] = useState(false);
 
   const confirm = () =>
-    alert({
-      header: order.folio ? `¿Cancelar el pedido ${order.folio}?` : '¿Cancelar tu pedido?',
+    void showAlert({
+      tone: 'warning',
+      title: order.folio ? `¿Cancelar el pedido ${order.folio}?` : '¿Cancelar tu pedido?',
       message: isPaid(order)
         ? 'Ya está pagado: al cancelarlo la tienda deja de prepararlo y te devuelve tu dinero.'
         : awaitingPayment(order)
@@ -125,24 +122,19 @@ function CancelButton({ order }: { order: Order }) {
           : order.status === 'pendiente'
             ? 'La tienda todavía no lo empieza. No se te cobra nada.'
             : 'La tienda ya lo está preparando. Al cancelarlo deja de prepararlo y no se te cobra nada.',
-      buttons: [
-        { text: 'Volver', role: 'cancel' },
-        {
-          text: 'Cancelar pedido',
-          role: 'destructive',
-          handler: async () => {
-            setBusy(true);
-            try {
-              await cancel(order.id);
-              void toast({ message: `Cancelaste el pedido ${order.folio}`, duration: 2500, color: 'success', position: 'top', cssClass: 'toast-app' });
-            } catch (e) {
-              void toast({ message: errorMessage(e, 'No pudimos cancelar tu pedido.'), duration: 4000, color: 'danger', position: 'top', cssClass: 'toast-app' });
-            } finally {
-              setBusy(false);
-            }
-          },
-        },
-      ],
+      primary: { text: 'Cancelar pedido', danger: true },
+      secondary: 'Volver',
+    }).then(async (ok) => {
+      if (!ok) return;
+      setBusy(true);
+      try {
+        await cancel(order.id);
+        void toast({ message: `Cancelaste el pedido ${order.folio}`, duration: 2500, color: 'success', position: 'top', cssClass: 'toast-app' });
+      } catch (e) {
+        void toast({ message: errorMessage(e, 'No pudimos cancelar tu pedido.'), duration: 4000, color: 'danger', position: 'top', cssClass: 'toast-app' });
+      } finally {
+        setBusy(false);
+      }
     });
 
   return (
