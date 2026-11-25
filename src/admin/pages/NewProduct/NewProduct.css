@@ -59,3 +59,12 @@
 .np-only { margin-top: 6px; }
 .np-margin { margin: -4px 2px 0; font-size: 0.88rem; color: var(--t-muted); }
 .np-margin strong { color: var(--ion-color-success-shade); }
+
+/* Alta con la cámara y código interno */
+.np-code-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.np-code-actions ion-button { --padding-start: 10px; --padding-end: 10px; white-space: normal; }
+@media (max-width: 359px) { .np-code-actions { grid-template-columns: 1fr; } }
+.np-camera { height: 240px; border-radius: var(--t-radius); overflow: hidden; }
+.np-notice { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--t-radius-sm); background: var(--t-surface-2); font-size: 0.88rem; line-height: 1.4; }
+.np-notice ion-icon, .np-notice ion-spinner { flex-shrink: 0; width: 18px; height: 18px; font-size: 18px; }
+.np-notice.is-ok { background: var(--t-success-bg); color: var(--ion-color-success-shade); }

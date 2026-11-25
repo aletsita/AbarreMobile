@@ -1,12 +1,12 @@
 .set-avatar { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--t-primary-bg); color: var(--ion-color-primary); font-size: 26px; flex-shrink: 0; }
 .set-avatar.is-off { background: var(--t-surface-2); color: var(--t-muted); }
 
-.set-install { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.set-install { display: flex; align-items: center; gap: 12px; }
 .set-install > div { flex: 1; }
 .set-install p { margin: 2px 0 0; font-size: 0.85rem; line-height: 1.4; }
 .set-installed { font-size: 24px; color: var(--ion-color-success); }
-.set-btn { margin-bottom: 4px; }
-.set-note { margin: 10px 2px 0; font-size: 0.86rem; line-height: 1.5; color: var(--t-muted); }
+.set-btn { margin: 12px 0 0; }
+.set-note { margin: 10px 0 0; font-size: 0.86rem; line-height: 1.5; color: var(--t-muted); }
 
 .set-device { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
 .set-device-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -18,7 +18,7 @@
 .set-status.is-off { color: var(--t-muted); }
 .set-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 
-.set-theme { --background: var(--t-surface-2); border: 1px solid var(--t-border); border-radius: var(--t-radius-sm); padding: 3px; }
+.set-theme { --background: var(--t-surface-2); border-radius: var(--t-radius-sm); padding: 3px; }
 .set-theme ion-segment-button {
   --indicator-color: transparent;
   --background-checked: var(--t-surface);
@@ -34,7 +34,7 @@
 .set-theme ion-segment-button.segment-button-checked { box-shadow: var(--t-shadow), 0 0 0 1px var(--t-border); }
 .set-theme ion-icon { font-size: 18px; margin-inline-end: 6px; }
 
-.set-server { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 10px 2px 12px; font-size: 0.86rem; color: var(--t-muted); }
+.set-server { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 6px; font-size: 0.84rem; color: var(--t-muted); }
 .set-server ion-icon { font-size: 17px; }
 .set-server strong { color: var(--ion-text-color); overflow-wrap: anywhere; }
 /* En pantallas angostas el ícono se oculta para que «Automático» quepa completo */
@@ -42,3 +42,19 @@
   .set-theme ion-icon { display: none; }
   .set-theme ion-segment-button { --padding-start: 4px; --padding-end: 4px; font-size: 0.84rem; }
 }
+
+/* Encabezado con la persona que usa el celular */
+.set-me { display: flex; align-items: center; gap: 16px; margin-top: 4px; padding: 22px 20px; border-radius: var(--t-radius-lg); background: var(--t-brand-gradient); color: var(--t-on-hero); box-shadow: var(--t-shadow-lift); }
+.set-me-avatar { display: grid; place-items: center; flex: none; width: 64px; height: 64px; border-radius: 50%; background: var(--t-hero-chip); border: 2px solid rgba(255, 255, 255, 0.35); font-size: 1.3rem; font-weight: 800; }
+.set-me-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.set-me-info strong { font-size: 1.2rem; font-weight: 800; overflow-wrap: anywhere; }
+.set-me-info span { align-self: flex-start; padding: 3px 10px; border-radius: 999px; background: var(--t-hero-chip); font-size: 0.78rem; font-weight: 700; }
+
+.set-phone-head { display: flex; align-items: center; gap: 14px; }
+.set-facts { margin: 12px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--t-border); }
+.set-facts li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; padding: 6px 0; font-size: 0.88rem; }
+.set-facts li + li { border-top: 1px solid var(--t-border); }
+.set-facts .set-status { margin: 0; text-align: right; }
+.set-sync .sync-chip, .set-sync > :first-child { margin: 0; }
+.set-theme-card { padding: 8px; }
+.set-logout { margin-top: 24px; }

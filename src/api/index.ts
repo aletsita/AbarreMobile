@@ -2,7 +2,7 @@ import { apiBaseOf, getServer } from '../lib/server';
 import { ApiError } from './errors';
 import { httpTransport } from './http';
 import type { Method, RequestOptions, Transport } from './transport';
-import type { AuthResponse, CatalogProduct, Customer, NewOrder, Order, StoreStatus } from './types';
+import type { AuthResponse, CatalogProduct, CatalogUpdate, Customer, NewOrder, Order, StockUpdate, StoreStatus } from './types';
 
 // La API vive en el mismo servidor que la sincronización con la caja (ver API.md)
 function transport(): Transport {
@@ -42,6 +42,8 @@ export const api = {
   me: () => call<Customer>('GET', '/yo'),
 
   catalog: () => call<CatalogProduct[]>('GET', '/catalogo'),
+  // Solo personal de la tienda (403 para clientes). 409 si está en una cuenta o apartado en un pedido.
+  deleteProduct: (id: string) => call<void>('DELETE', `/productos/${encodeURIComponent(id)}`),
   store: () => call<StoreStatus>('GET', '/tienda'),
   orders: () => call<Order[]>('GET', '/pedidos'),
   order: (id: string) => call<Order>('GET', `/pedidos/${encodeURIComponent(id)}`),
@@ -52,12 +54,20 @@ export const api = {
   changeOrder: (id: string, items: { productId: string; qty: number }[]) =>
     call<Order>('POST', `/pedidos/${encodeURIComponent(id)}/cambiar`, { body: { items } }),
   cancelOrder: (id: string) => call<Order>('POST', `/pedidos/${encodeURIComponent(id)}/cancelar`),
-  // 409 → ApiError con details: OrderConflict
+  // Reintentar el pago: si la sesión anterior sigue abierta regresa la misma (no se cobra dos veces)
+  payOrder: (id: string) => call<Order>('POST', `/pedidos/${encodeURIComponent(id)}/pagar`),
+  // Crea el pedido sin pagar junto con su sesión de pago (Order.paymentClientSecret). 409 → ApiError con details: OrderConflict
   createOrder: (order: NewOrder, idempotencyKey: string) =>
     call<Order>('POST', '/pedidos', { body: order, headers: { 'Idempotency-Key': idempotencyKey } }),
 
-  // Cambios de mis pedidos y de la tienda (abierta o cerrada) en vivo. Devuelve la función para cerrar.
-  watchOrders(onOrder: (o: Order) => void, onStatus: (open: boolean) => void, onStore?: (s: StoreStatus) => void): () => void {
+  // Cambios de mis pedidos, de la tienda (abierta o cerrada) y de las existencias en vivo. Devuelve la función para cerrar.
+  watchOrders(
+    onOrder: (o: Order) => void,
+    onStatus: (open: boolean) => void,
+    onStore?: (s: StoreStatus) => void,
+    onStock?: (list: StockUpdate[]) => void,
+    onCatalog?: (u: CatalogUpdate) => void,
+  ): () => void {
     const sent = token;
     if (!sent) return () => undefined;
     try {
@@ -67,6 +77,8 @@ export const api = {
         (type, data) => {
           if (type === 'pedido') onOrder(data as Order);
           else if (type === 'tienda') onStore?.(data as StoreStatus);
+          else if (type === 'inventario') onStock?.(data as StockUpdate[]);
+          else if (type === 'catalogo') onCatalog?.(data as CatalogUpdate);
         },
         onStatus,
       );

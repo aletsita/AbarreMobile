@@ -2,6 +2,7 @@ import { IonApp, IonRouterOutlet, IonSpinner, setupIonicReact, useIonToast } fro
 import { IonReactRouter } from '@ionic/react-router';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Redirect, Route, useLocation } from 'react-router-dom';
+import { AlertProvider } from './components/AppAlert';
 import { canEnter, homeFor } from './session/guard';
 import { guardedHistory, setGuardRole } from './session/history';
 import { SessionProvider, useSession } from './session/SessionContext';
@@ -78,9 +79,11 @@ function Shell() {
   return (
     <>
       <IonApp>
-        <IonReactRouter history={guardedHistory}>
-          <RoleGate />
-        </IonReactRouter>
+        <AlertProvider>
+          <IonReactRouter history={guardedHistory}>
+            <RoleGate />
+          </IonReactRouter>
+        </AlertProvider>
       </IonApp>
       {splash && <Splash ready={status === 'lista'} onDone={() => setSplash(false)} />}
     </>

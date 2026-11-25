@@ -259,20 +259,6 @@
 .cl-qty output { min-width: 28px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* Carrito */
-.cl-lines { margin: 0; padding: 0; list-style: none; }
-.cl-lines.card { padding: 16px; }
-.cl-lines li { display: flex; gap: 12px; padding: 14px 0; }
-.cl-lines li + li { border-top: 1px solid var(--t-border); }
-.cl-lines li:first-child { padding-top: 0; }
-.cl-lines li:last-child { padding-bottom: 0; }
-.cl-line-info { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; flex: 1; min-width: 0; }
-.cl-line-info strong { font-size: 0.94rem; font-weight: 600; line-height: 1.3; }
-.cl-line-info .muted { font-size: 0.82rem; }
-.cl-line-info .cl-qty { margin-top: 4px; }
-.cl-line-end { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; }
-.cl-total { display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
-.cl-total .money { font-size: 1.35rem; font-weight: 800; }
-.cl-pay-note { margin: 0; text-align: center; font-size: 0.86rem; color: var(--t-muted); }
 
 /* Confirmar y detalle del pedido */
 .cl-summary h2 { margin-top: 0; }
@@ -384,16 +370,6 @@
 .cl-timeline small { font-size: 0.78rem; }
 
 /* Perfil */
-.cl-profile { display: flex; align-items: center; gap: 14px; }
-.cl-profile > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.cl-profile strong { font-size: 1.1rem; }
-.cl-profile .muted { display: flex; align-items: center; gap: 6px; font-size: 0.88rem; overflow-wrap: anywhere; }
-.cl-avatar { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: var(--t-hero-bg); color: var(--t-on-hero); font-weight: 700; font-size: 1.1rem; flex-shrink: 0; }
-.cl-notif { display: flex; gap: 12px; align-items: flex-start; }
-.cl-notif > ion-icon { font-size: 24px; color: var(--ion-color-primary); flex-shrink: 0; }
-.cl-notif p { margin: 0 0 6px; font-size: 0.92rem; line-height: 1.4; }
-.cl-notif ion-button { margin: 4px 0 0; }
-.cl-logout { margin-top: 24px; }
 
 /* Código para recoger */
 .cl-code { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
@@ -424,3 +400,156 @@
 .cl-summary li.is-out span:first-child { color: var(--ion-color-danger); text-decoration: line-through; }
 .cl-swap-row.is-picked { border-color: var(--ion-color-primary); box-shadow: 0 0 0 1px var(--ion-color-primary); }
 .cl-cancel-order { margin: 4px 0 0; min-height: 46px; font-weight: 650; }
+
+/* Pago en línea */
+.cl-pay-chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 0.76rem; font-weight: 700; white-space: nowrap; }
+.cl-pay-chip.is-pagado { background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.cl-pay-chip.is-pendiente_de_pago { background: var(--t-warning-bg); color: var(--t-warning-text); }
+.cl-pay-chip.is-fallido,
+.cl-pay-chip.is-por_reembolsar { background: var(--t-danger-bg); color: var(--ion-color-danger); }
+.cl-pay-chip.is-reembolsado { background: var(--t-surface-3); color: var(--t-muted); }
+.cl-order-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-order-code { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.cl-order-code small { color: var(--t-muted); font-size: 0.76rem; }
+.cl-order-code strong { font-size: 1.6rem; letter-spacing: 0.12em; font-variant-numeric: tabular-nums; font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }
+
+/* ---------- Pasos del pedido ---------- */
+.cl-steps { display: flex; margin: 0 0 4px; padding: 0; list-style: none; }
+.cl-steps li { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 650; color: var(--t-muted); }
+.cl-steps li + li::before { content: ''; position: absolute; top: 14px; right: 50%; left: -50%; height: 2px; background: var(--t-border-strong); }
+.cl-steps li.is-done + li::before { background: var(--ion-color-secondary); }
+.cl-steps-dot { position: relative; z-index: 1; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--t-border-strong); background: var(--t-surface); font-size: 0.82rem; font-weight: 800; }
+.cl-steps li.is-current { color: var(--ion-text-color); }
+.cl-steps li.is-current .cl-steps-dot { border-color: var(--ion-color-secondary); background: var(--ion-color-secondary); color: var(--ion-color-secondary-contrast); box-shadow: 0 0 0 4px rgba(var(--ion-color-secondary-rgb), 0.18); }
+.cl-steps li.is-done { color: var(--ion-color-secondary); }
+.cl-steps li.is-done .cl-steps-dot { border-color: var(--ion-color-secondary); background: var(--t-accent-bg); color: var(--ion-color-secondary); font-size: 16px; }
+
+/* ---------- Pantalla «Pagar pedido» ---------- */
+.cl-payhero { display: flex; flex-direction: column; gap: 6px; padding: 20px; border-radius: var(--t-radius-lg); background: var(--t-brand-gradient); color: var(--t-on-hero); box-shadow: var(--t-shadow-lift); }
+.cl-payhero-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cl-payhero-label { font-size: 0.86rem; color: var(--t-on-hero-muted); font-weight: 600; }
+.cl-payhero-safe { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: var(--t-hero-chip); font-size: 0.76rem; font-weight: 700; }
+.cl-payhero-amount { font-size: 2.4rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; }
+.cl-payhero-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 4px; font-size: 0.84rem; color: var(--t-on-hero-muted); }
+.cl-payhero-meta span { display: inline-flex; align-items: center; gap: 6px; }
+.cl-payhero-meta ion-icon { font-size: 16px; }
+
+/* El formulario de Stripe es claro: el recuadro se queda blanco también en modo oscuro */
+.cl-paybox { position: relative; min-height: 380px; padding: 8px; overflow: hidden; background: #fff; }
+.cl-paybox[hidden] { display: none; }
+.cl-paybox-frame { min-height: 360px; }
+.cl-paybox-skeleton { position: absolute; inset: 20px; display: flex; flex-direction: column; gap: 14px; }
+.cl-paybox-skeleton span { height: 46px; border-radius: var(--t-radius-sm); background: linear-gradient(90deg, #eef2f6 0%, #f8fafc 50%, #eef2f6 100%); background-size: 200% 100%; animation: cl-shimmer 1.2s linear infinite; }
+.cl-paybox-skeleton .is-half { width: 55%; }
+.cl-paybox-skeleton .is-btn { height: 52px; margin-top: 10px; background: #dfe6f5; }
+@keyframes cl-shimmer { to { background-position: -200% 0; } }
+.cl-paybox-foot { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; font-size: 0.8rem; color: var(--t-muted); text-align: center; }
+
+.cl-confirming { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px 20px; text-align: center; }
+.cl-confirming h1 { margin: 6px 0 0; font-size: 1.4rem; font-weight: 800; }
+.cl-confirming p { margin: 0; max-width: 34ch; line-height: 1.45; }
+.cl-confirming-amount { font-size: 1.3rem; }
+.cl-confirming ion-button { width: 100%; margin-top: 8px; }
+.cl-confirming-ring { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; background: var(--t-primary-bg); color: var(--ion-color-primary); }
+.cl-confirming-spin { width: 52px; height: 52px; border-radius: 50%; border: 4px solid rgba(var(--ion-color-primary-rgb), 0.2); border-top-color: var(--ion-color-primary); animation: cl-spin 0.9s linear infinite; }
+@keyframes cl-spin { to { transform: rotate(360deg); } }
+.cl-confirming.is-done .cl-confirming-ring { background: var(--t-success-bg); color: var(--ion-color-success); animation: cl-pop 0.35s ease-out; }
+.cl-confirming.is-done .cl-confirming-ring ion-icon { font-size: 54px; }
+@keyframes cl-pop { from { transform: scale(0.6); opacity: 0; } }
+
+/* Aviso con ícono (errores) */
+.cl-alert { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--t-radius); border: 1px solid transparent; }
+.cl-alert-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 12px; font-size: 22px; }
+.cl-alert-body { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.cl-alert-body strong { font-size: 0.98rem; }
+.cl-alert-body p { margin: 0; font-size: 0.88rem; line-height: 1.45; color: var(--t-muted); }
+.cl-alert-btn { margin: 6px 0 0; --border-radius: 999px; }
+.cl-alert.is-danger { background: var(--t-danger-bg); border-color: rgba(var(--ion-color-danger-rgb), 0.25); }
+.cl-alert.is-danger .cl-alert-icon { background: rgba(var(--ion-color-danger-rgb), 0.14); color: var(--ion-color-danger); }
+.cl-alert.is-danger .cl-alert-btn { --background: var(--ion-color-danger); --color: var(--ion-color-danger-contrast); }
+
+/* ---------- Estado del pago del pedido ---------- */
+.cl-paycard { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 18px 16px; border-radius: var(--t-radius-lg); border: 1px solid var(--t-border); background: var(--t-surface); box-shadow: var(--t-shadow); text-align: center; }
+.cl-paycard h2 { margin: 4px 0 0; font-size: 1.2rem; font-weight: 800; }
+.cl-paycard p { margin: 0; max-width: 36ch; font-size: 0.9rem; line-height: 1.45; color: var(--t-muted); }
+.cl-paycard ion-button { width: 100%; margin-top: 8px; }
+.cl-paycard-icon { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; font-size: 30px; }
+.cl-paycard.is-hero { padding-top: 28px; }
+.cl-paycard.is-hero .cl-paycard-icon { width: 76px; height: 76px; font-size: 38px; }
+.cl-paycard.is-hero h2 { font-size: 1.45rem; }
+.cl-paycard-amount { display: grid; justify-items: center; width: 100%; margin-top: 8px; padding: 12px; border-radius: var(--t-radius); background: var(--t-surface-2); }
+.cl-paycard-amount span, .cl-paycard-amount small { font-size: 0.8rem; color: var(--t-muted); }
+.cl-paycard-amount strong { font-size: 1.9rem; font-weight: 800; }
+.cl-paycard-safe { display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; color: var(--t-muted); }
+.cl-paycard.is-waiting .cl-paycard-icon { background: var(--t-warning-bg); color: var(--t-warning-text); }
+.cl-paycard.is-waiting:not(.is-hero) { border-color: rgba(var(--ion-color-warning-rgb), 0.35); }
+.cl-paycard.is-failed { border-color: rgba(var(--ion-color-danger-rgb), 0.3); }
+.cl-paycard.is-failed .cl-paycard-icon { background: var(--t-danger-bg); color: var(--ion-color-danger); }
+.cl-paycard.is-refund .cl-paycard-icon { background: var(--t-primary-bg); color: var(--ion-color-primary); }
+.cl-pay-ok { display: flex; align-items: center; gap: 12px; margin: 0; padding: 12px 14px; border-radius: var(--t-radius); background: var(--t-success-bg); color: var(--ion-color-success-shade); }
+.cl-pay-ok-icon { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 50%; background: rgba(var(--ion-color-success-rgb), 0.16); font-size: 22px; }
+.cl-pay-ok > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.cl-pay-ok small { color: var(--ion-text-color); opacity: 0.75; font-size: 0.84rem; }
+
+/* ---------- Carrito ---------- */
+.cl-cart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 2px 0; }
+.cl-cart-head h1 { margin: 0; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.015em; }
+.cl-cart-count { padding: 4px 10px; border-radius: 999px; background: var(--t-primary-bg); color: var(--ion-color-primary); font-size: 0.8rem; font-weight: 700; }
+.cl-cart-lines { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.cl-cart-line { display: flex; gap: 12px; padding: 12px; }
+.cl-cart-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.cl-cart-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.cl-cart-top strong { font-size: 0.96rem; font-weight: 650; line-height: 1.3; }
+.cl-cart-info > .muted { font-size: 0.82rem; }
+.cl-cart-max { color: var(--t-warning-text); font-weight: 600; }
+.cl-cart-remove { display: grid; place-items: center; flex: none; width: 36px; height: 36px; margin: -6px -6px 0 0; border: 0; border-radius: 50%; background: transparent; color: var(--t-muted); font-size: 18px; }
+.cl-cart-remove:active { background: var(--t-danger-bg); color: var(--ion-color-danger); }
+.cl-cart-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.cl-cart-sub { font-size: 1.05rem; font-weight: 800; }
+.cl-cart-note .field { margin: 0; }
+.cl-cart-total { display: flex; flex-direction: column; gap: 8px; }
+.cl-cart-total > div { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.9rem; color: var(--t-muted); }
+.cl-cart-total > div.is-total { padding-top: 10px; border-top: 1px dashed var(--t-border-strong); color: var(--ion-text-color); font-weight: 700; }
+.cl-cart-total .money { font-size: 1.5rem; font-weight: 800; }
+
+/* ---------- Confirmar pedido ---------- */
+.cl-review-head { display: flex; align-items: center; justify-content: space-between; margin: -4px -6px 4px 0; }
+.cl-review-head h2 { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.cl-review-lines { margin: 0; padding: 0; list-style: none; }
+.cl-review-lines li { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.cl-review-lines li + li { border-top: 1px dashed var(--t-border); }
+.cl-review-name { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 1px; }
+.cl-review-name strong { font-size: 0.92rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-review-name .muted { font-size: 0.8rem; }
+.cl-howto { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+.cl-howto > div { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--t-radius-sm); background: var(--t-surface-2); }
+.cl-howto > div > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.cl-howto strong { font-size: 0.92rem; }
+.cl-howto small { font-size: 0.8rem; line-height: 1.35; color: var(--t-muted); }
+.cl-howto-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--t-primary-bg); color: var(--ion-color-primary); font-size: 20px; }
+.cl-howto-icon.is-pay { background: var(--t-accent-bg); color: var(--ion-color-secondary); }
+@media (max-width: 340px) { .cl-howto { grid-template-columns: 1fr; } }
+
+/* ---------- Perfil ---------- */
+.cl-me { display: flex; align-items: center; gap: 16px; padding: 22px 20px; border-radius: var(--t-radius-lg); background: var(--t-brand-gradient); color: var(--t-on-hero); box-shadow: var(--t-shadow-lift); }
+.cl-me-avatar { display: grid; place-items: center; flex: none; width: 68px; height: 68px; border-radius: 50%; background: var(--t-hero-chip); border: 2px solid rgba(255, 255, 255, 0.35); font-size: 1.4rem; font-weight: 800; }
+.cl-me-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cl-me-info strong { font-size: 1.25rem; font-weight: 800; overflow-wrap: anywhere; }
+.cl-me-info span { align-self: flex-start; padding: 3px 10px; border-radius: 999px; background: var(--t-hero-chip); font-size: 0.76rem; font-weight: 700; }
+.cl-rows { margin: 0; padding: 4px 16px; list-style: none; }
+.cl-rows li { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 0; }
+.cl-rows li + li { border-top: 1px solid var(--t-border); }
+.cl-rows-loading { justify-content: center; }
+.cl-row-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--t-primary-bg); color: var(--ion-color-primary); font-size: 20px; }
+.cl-row-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cl-row-text small { font-size: 0.76rem; color: var(--t-muted); }
+.cl-row-text strong { font-size: 0.95rem; font-weight: 600; overflow-wrap: anywhere; }
+.cl-notif { display: flex; gap: 12px; align-items: flex-start; }
+.cl-notif > div { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.cl-notif strong { font-size: 0.95rem; }
+.cl-notif p { margin: 0; font-size: 0.86rem; line-height: 1.4; color: var(--t-muted); }
+.cl-notif ion-button { margin: 8px 0 0; --border-radius: 999px; }
+.cl-notif.is-granted .cl-row-icon { background: var(--t-success-bg); color: var(--ion-color-success); }
+.cl-notif.is-denied .cl-row-icon { background: var(--t-warning-bg); color: var(--t-warning-text); }
+.cl-theme-card { padding: 8px; }
+.cl-logout { margin-top: 24px; }

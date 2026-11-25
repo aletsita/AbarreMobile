@@ -1,5 +1,5 @@
 import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonSpinner, IonToolbar, useIonRouter } from '@ionic/react';
-import { alertCircleOutline, cashOutline, cloudOfflineOutline, storefrontOutline } from 'ionicons/icons';
+import { alertCircleOutline, cardOutline, cloudOfflineOutline, createOutline, storefrontOutline } from 'ionicons/icons';
 import { useState } from 'react';
 import { ApiError, errorMessage } from '../../api/errors';
 import type { OrderChange, OrderConflict } from '../../api/types';
@@ -10,8 +10,8 @@ import { useOnline } from '../../lib/online';
 import { useCart } from '../lib/cart';
 import { useCatalog } from '../lib/catalog';
 import { useOrders } from '../lib/orders';
-import { newPickupCode } from '../lib/pickup';
-import { StoreClosed } from '../components/ui';
+import { CheckoutSteps } from '../components/CheckoutSteps';
+import { ProductImage, StoreClosed } from '../components/ui';
 
 function changeText(c: OrderChange) {
   switch (c.kind) {
@@ -50,14 +50,14 @@ export default function Confirmar() {
           items: cart.lines.map((l) => ({ productId: l.productId, qty: l.qty, price: l.price })),
           note: cart.note.trim(),
           expectedTotal: cart.total,
-          // Si el envío se reintenta con la misma clave, el servidor regresa el pedido con su código original
-          pickupCode: newPickupCode(),
         },
+        // Si el envío se reintenta con la misma clave, el servidor regresa el mismo pedido y la misma página de pago
         cart.orderKey,
       );
       cart.clear();
       void catalog.refresh();
-      router.push(`/cliente/pedido-creado/${order.id}`, 'root', 'replace');
+      // El monto lo calculó el servidor. La tarjeta se escribe en el recuadro de Stripe de la pantalla de pago.
+      router.push(`/cliente/pagar/${order.id}`, 'root', 'replace');
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && (e.details as OrderConflict | undefined)?.code === 'pedido-cambio') {
         const conflict = e.details as OrderConflict;
@@ -109,13 +109,25 @@ export default function Confirmar() {
             </section>
           )}
 
-          <section className="card cl-summary">
-            <h2 className="section-title">Tu pedido</h2>
-            <ul>
+          <CheckoutSteps current={0} />
+
+          <section className="card cl-review">
+            <div className="cl-review-head">
+              <h2>Tu pedido</h2>
+              <IonButton fill="clear" size="small" routerLink="/cliente/carrito" routerDirection="back">
+                <IonIcon slot="start" icon={createOutline} />
+                Editar
+              </IonButton>
+            </div>
+            <ul className="cl-review-lines">
               {cart.lines.map((l) => (
                 <li key={l.productId}>
-                  <span>
-                    <strong>{l.qty} ×</strong> {l.name}
+                  <ProductImage product={l} size={44} />
+                  <span className="cl-review-name">
+                    <strong>{l.name}</strong>
+                    <span className="muted">
+                      {l.qty} × {money(l.price)}
+                    </span>
                   </span>
                   <span className="money">{money(l.price * l.qty)}</span>
                 </li>
@@ -128,14 +140,26 @@ export default function Confirmar() {
             </div>
           </section>
 
-          <div className="cl-pickup">
-            <IonIcon icon={storefrontOutline} />
-            <span>Pasa a <strong>recoger tu pedido a la tienda</strong> cuando te avisemos que está listo.</span>
-          </div>
-          <div className="cl-pickup">
-            <IonIcon icon={cashOutline} />
-            <span><strong>Pagas al recoger</strong> en la tienda. No se cobra nada en la app.</span>
-          </div>
+          <section className="card cl-howto">
+            <div>
+              <span className="cl-howto-icon">
+                <IonIcon icon={storefrontOutline} aria-hidden="true" />
+              </span>
+              <span>
+                <strong>Pasa a recoger</strong>
+                <small>Te avisamos cuando tu pedido esté listo en la tienda.</small>
+              </span>
+            </div>
+            <div>
+              <span className="cl-howto-icon is-pay">
+                <IonIcon icon={cardOutline} aria-hidden="true" />
+              </span>
+              <span>
+                <strong>Pagas en línea</strong>
+                <small>Con tarjeta, en el siguiente paso.</small>
+              </span>
+            </div>
+          </section>
 
           {error && (
             <div className="form-error" role="alert">
@@ -148,7 +172,7 @@ export default function Confirmar() {
       <IonFooter className="action-footer">
         <IonToolbar>
           <IonButton expand="block" className="btn-xl" color="secondary" onClick={() => void submit()} disabled={busy || !cart.lines.length || catalog.closed}>
-            {busy ? <IonSpinner name="crescent" /> : changes.length ? `Confirmar con los cambios · ${money(cart.total)}` : `Confirmar pedido · ${money(cart.total)}`}
+            {busy ? <IonSpinner name="crescent" /> : changes.length ? `Confirmar y pagar con los cambios · ${money(cart.total)}` : `Confirmar y pagar · ${money(cart.total)}`}
           </IonButton>
         </IonToolbar>
       </IonFooter>

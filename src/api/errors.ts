@@ -15,12 +15,14 @@ export class ApiError extends Error {
   }
 }
 
-export const networkError = () => new ApiError(0, 'sin-conexion', 'No hay conexión con el servidor.');
+export const networkError = () => new ApiError(0, 'sin-conexion', 'No pudimos conectar. Revisa tu internet e inténtalo de nuevo.');
 
 // Mensaje para mostrar en pantalla, sin detalles técnicos
 export function errorMessage(e: unknown, fallback = 'Algo salió mal. Inténtalo de nuevo.') {
   if (e instanceof ApiError) {
-    if (e.offline) return 'No hay conexión. Revisa tu internet e inténtalo de nuevo.';
+    if (e.offline) return 'No pudimos conectar. Revisa tu internet e inténtalo de nuevo.';
+    // 503 trae un aviso pensado para el cliente (tienda desconectada, pago no disponible); los demás 5xx no
+    if (e.status === 503 && e.message) return e.message;
     if (e.status >= 500) return 'El servidor tuvo un problema. Inténtalo en un momento.';
     return e.message || fallback;
   }

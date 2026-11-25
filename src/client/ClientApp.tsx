@@ -12,6 +12,7 @@ import CambiarPedido from './pages/CambiarPedido';
 import Carrito from './pages/Carrito';
 import Confirmar from './pages/Confirmar';
 import PedidoCreado from './pages/PedidoCreado';
+import Pagar from './pages/Pagar';
 import PedidoDetalle from './pages/PedidoDetalle';
 import Pedidos from './pages/Pedidos';
 import Perfil from './pages/Perfil';
@@ -85,6 +86,7 @@ export default function ClientApp() {
             <Route exact path="/cliente/producto/:id" component={Producto} />
             <Route exact path="/cliente/confirmar" component={Confirmar} />
             <Route exact path="/cliente/pedido-creado/:id" component={PedidoCreado} />
+            <Route exact path="/cliente/pagar/:id" component={Pagar} />
             <Route exact path="/cliente/pedido/:id" component={PedidoDetalle} />
             <Route exact path="/cliente/pedido/:id/cambiar" component={CambiarPedido} />
             <Route>

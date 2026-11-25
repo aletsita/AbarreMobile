@@ -1,21 +1,55 @@
-import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonToolbar, useIonRouter, useIonToast } from '@ionic/react';
-import { add, alertCircleOutline, barcodeOutline, paperPlaneOutline, remove } from 'ionicons/icons';
-import { useState } from 'react';
+import {
+  IonButton,
+  IonContent,
+  IonFooter,
+  IonIcon,
+  IonPage,
+  IonSpinner,
+  IonToolbar,
+  useIonRouter,
+  useIonToast,
+  useIonViewDidEnter,
+  useIonViewWillEnter,
+  useIonViewWillLeave,
+} from '@ionic/react';
+import {
+  add,
+  alertCircleOutline,
+  barcodeOutline,
+  cameraOutline,
+  checkmarkCircleOutline,
+  closeOutline,
+  informationCircleOutline,
+  paperPlaneOutline,
+  remove,
+  sparklesOutline,
+} from 'ionicons/icons';
+import { useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { autofillProduct } from '../../../application/lookupProduct';
 import { AppHeader } from '../../../components/AppHeader';
+import { useAppAlert } from '../../../components/AppAlert';
 import { MoneyField, TextField } from '../../../components/Form';
+import { generateInternalEan13 } from '../../../domain/ean13';
 import { PhotoPicker } from '../../components/PhotoPicker';
 import { useApp } from '../../context/AppContext';
+import { readPhoto } from '../../lib/photo';
+import { ScannerView } from '../../scanner/ScannerView';
 import { CATEGORIES, money, uid, type Product } from '../../../data/models';
 import './NewProduct.css';
+
+type Notice = { tone: 'ok' | 'info'; text: string };
 
 export default function NewProduct() {
   const { search } = useLocation();
   const { saveProduct, sendToRegister, findByBarcode, store, thisDevice } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
-  const fromScan = new URLSearchParams(search).get('codigo') ?? '';
+  const showAlert = useAppAlert();
+  const codeInUrl = () => (new URLSearchParams(search).get('codigo') ?? '').replace(/\s/g, '');
 
+  // Código con el que llegó desde el escáner (no registrado); se vuelve a leer cada vez que se entra
+  const [fromScan, setFromScan] = useState(codeInUrl);
   const [barcode, setBarcode] = useState(fromScan);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Abarrotes');
@@ -24,6 +58,102 @@ export default function NewProduct() {
   const [stock, setStock] = useState(1);
   const [photo, setPhoto] = useState<string>();
   const [tried, setTried] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+
+  // Alta con la cámara: lee el código y trata de llenar el resto desde una base pública
+  const [scanning, setScanning] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [looking, setLooking] = useState(false);
+  const [notice, setNotice] = useState<Notice>();
+  const lookupId = useRef(0);
+  useIonViewDidEnter(() => setVisible(true));
+
+  // Ionic deja la pantalla montada entre visitas: el formulario se reinicia al entrar y al salir para no
+  // arrastrar el código, los datos autocompletados ni los errores de la vez anterior
+  const reset = (code: string) => {
+    lookupId.current++;
+    setFromScan(code);
+    setBarcode(code);
+    setName('');
+    setCategory('Abarrotes');
+    setCost('');
+    setPrice('');
+    setStock(1);
+    setPhoto(undefined);
+    setTried(false);
+    setScanning(false);
+    setLooking(false);
+    setNotice(undefined);
+    setSaving(false);
+    savingRef.current = false;
+  };
+  useIonViewWillEnter(() => {
+    const code = codeInUrl();
+    reset(code);
+    // Llegó desde el escáner con un código que no existe: se buscan sus datos
+    if (code && !findByBarcode(code)) void lookup(code);
+  }, [search]);
+  useIonViewWillLeave(() => {
+    setVisible(false);
+    reset('');
+  });
+
+  const lookup = async (code: string) => {
+    const id = ++lookupId.current;
+    setLooking(true);
+    setNotice(undefined);
+    const r = await autofillProduct(code);
+    if (id !== lookupId.current) return;
+    setLooking(false);
+    if (r.status === 'listo') {
+      // Lo que la persona ya escribió no se pisa; lo sugerido siempre se puede editar
+      setName((n) => n.trim() ? n : r.draft.name);
+      if (r.draft.image) {
+        const image = r.draft.image;
+        readPhoto(new File([image], 'foto', { type: image.type }))
+          .then((p) => setPhoto((current) => current ?? p))
+          .catch(() => undefined);
+      }
+      setNotice({ tone: 'ok', text: `Llenamos los datos con ${r.draft.source}. Revisa el nombre y captura el precio y la existencia.` });
+    } else if (r.status === 'no-encontrado') {
+      setNotice({ tone: 'info', text: 'Este código no está en la base pública de productos. Llena los datos a mano.' });
+    } else if (r.status === 'sin-conexion') {
+      setNotice({ tone: 'info', text: 'Sin internet no pudimos buscar los datos. Ya pusimos el código; captura lo demás a mano.' });
+    } else {
+      setNotice({ tone: 'info', text: 'No pudimos consultar la base de productos. Ya pusimos el código; captura lo demás a mano.' });
+    }
+  };
+
+  const takeCode = (raw: string) => {
+    const code = raw.replace(/\s/g, '');
+    setScanning(false);
+    setBarcode(code);
+    const existing = findByBarcode(code);
+    if (existing) {
+      lookupId.current++;
+      setLooking(false);
+      setNotice(undefined);
+      void showAlert({
+        tone: 'info',
+        title: 'Ya está en tu inventario',
+        code,
+        message: `Este código es de ${existing.name}. Puedes editarlo en lugar de darlo de alta otra vez.`,
+        primary: 'Editar producto',
+        secondary: 'Cancelar',
+      }).then((edit) => edit && router.push(`/movil/producto/${existing.id}`, 'forward', 'replace'));
+      return;
+    }
+    void lookup(code);
+  };
+
+  const generateCode = () => {
+    lookupId.current++;
+    setLooking(false);
+    setScanning(false);
+    setBarcode(generateInternalEan13((c) => !!findByBarcode(c)));
+    setNotice({ tone: 'info', text: 'Código interno de la tienda (empieza con 2). Imprímelo en una etiqueta para escanearlo después.' });
+  };
 
   const duplicate = barcode.trim() ? findByBarcode(barcode) : undefined;
   const errors = {
@@ -35,9 +165,13 @@ export default function NewProduct() {
   const invalid = Boolean(errors.barcode || errors.name || errors.price);
   const margin = Number(price) - Number(cost);
 
-  const save = (toRegister: boolean) => {
+  const save = async (toRegister: boolean) => {
+    // Un solo guardado aunque se toque dos veces el botón
+    if (savingRef.current) return;
     setTried(true);
     if (invalid) return;
+    savingRef.current = true;
+    setSaving(true);
     const product: Product = {
       id: `p${uid()}`,
       name: name.trim(),
@@ -49,8 +183,22 @@ export default function NewProduct() {
       barcode: barcode.trim(),
       photo,
     };
-    const r = saveProduct(product, true);
-    if (toRegister) sendToRegister(product, 1);
+    let r: ReturnType<typeof saveProduct>;
+    try {
+      r = saveProduct(product, true);
+      if (toRegister) sendToRegister(product, 1);
+    } catch {
+      // No se guardó: el formulario se queda como está para corregir o reintentar
+      savingRef.current = false;
+      setSaving(false);
+      await showAlert({
+        tone: 'error',
+        title: 'No se guardó el producto',
+        message: 'Algo falló al guardarlo en el celular. Revisa los datos e inténtalo de nuevo.',
+        primary: 'Entendido',
+      });
+      return;
+    }
     const offline = r === 'pendiente';
     toast({
       message: offline
@@ -63,8 +211,9 @@ export default function NewProduct() {
       position: 'top',
       cssClass: 'toast-app',
     });
-    if (router.canGoBack()) router.goBack();
-    else router.push('/movil/escaner', 'back');
+    // Formulario limpio y al inventario, donde ya aparece el producto nuevo
+    reset('');
+    router.push('/movil/inventario', 'root', 'replace');
   };
 
   return (
@@ -96,6 +245,33 @@ export default function NewProduct() {
                 onChange={(v) => setBarcode(v.replace(/\s/g, ''))}
               />
             </div>
+            <div className="np-code-actions">
+              <IonButton fill="outline" className="btn-lg" onClick={() => setScanning((s) => !s)} aria-expanded={scanning}>
+                <IonIcon slot="start" icon={scanning ? closeOutline : cameraOutline} />
+                {scanning ? 'Cerrar cámara' : 'Escanear con la cámara'}
+              </IonButton>
+              <IonButton fill="outline" className="btn-lg" onClick={generateCode}>
+                <IonIcon slot="start" icon={sparklesOutline} />
+                Generar código
+              </IonButton>
+            </div>
+            {scanning && (
+              <div className="np-camera">
+                <ScannerView enabled={visible && scanning} onCode={takeCode} hint="Apunta al código del producto" />
+              </div>
+            )}
+            {looking && (
+              <p className="np-notice" role="status">
+                <IonSpinner name="crescent" />
+                Buscando los datos del producto…
+              </p>
+            )}
+            {notice && !looking && (
+              <p className={`np-notice is-${notice.tone}`} role="status">
+                <IonIcon icon={notice.tone === 'ok' ? checkmarkCircleOutline : informationCircleOutline} />
+                {notice.text}
+              </p>
+            )}
 
             <TextField
               label="Nombre del producto"
@@ -152,11 +328,11 @@ export default function NewProduct() {
 
       <IonFooter className="action-footer ion-no-border">
         <IonToolbar>
-          <IonButton expand="block" className="btn-xl" onClick={() => save(false)}>
-            Guardar producto
+          <IonButton expand="block" className="btn-xl" onClick={() => void save(false)} disabled={saving}>
+            {saving ? <IonSpinner name="crescent" /> : 'Guardar producto'}
           </IonButton>
           {thisDevice && (
-            <IonButton expand="block" fill="clear" color="secondary" className="btn-lg np-only" onClick={() => save(true)}>
+            <IonButton expand="block" fill="clear" color="secondary" className="btn-lg np-only" onClick={() => void save(true)} disabled={saving}>
               <IonIcon slot="start" icon={paperPlaneOutline} />
               Guardar y enviar a la caja
             </IonButton>
