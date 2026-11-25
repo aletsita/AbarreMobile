@@ -32,6 +32,7 @@ import {
 } from '../../data/models';
 import { api } from '../../api';
 import { ApiError, errorMessage } from '../../api/errors';
+import { isWeighed, qtyLabel, qtyText, roundQty } from '../../domain/weight';
 import { productInUse } from '../../data/productUse';
 import { ACTIVE_STATUSES, isPaidOnline, nextStatus, orderFolio, PICKUP_CODE, reservedStock, type CancelReason, type OrderRequest, type PickupOrder } from '../../data/pickup';
 import { CASH_MOVEMENTS, CREDIT_MOVEMENTS, CUSTOMERS, CUTS, DEVICES, MOVEMENTS, PRODUCTS, SALES, SHIFT, STORE, TICKET, USERS } from '../../data/seed';
@@ -134,6 +135,8 @@ type Action =
   | { type: 'REMOVE_SENT'; sentId: string }
   | { type: 'TICKET_ADD'; product: Product; qty: number; at: number }
   | { type: 'TICKET_QTY'; productId: string; delta: number }
+  // Peso exacto de una línea por peso (se vuelve a pesar)
+  | { type: 'TICKET_SET_QTY'; productId: string; qty: number }
   | { type: 'TICKET_REMOVE'; productId: string }
   | { type: 'TICKET_CLEAR' }
   | { type: 'CONFIRM_SALE'; sale: Sale }
@@ -272,7 +275,7 @@ function loadData(): Data {
 
 function addToTicket(ticket: TicketLine[], product: Product, qty: number, source: TicketLine['source'], at: number) {
   if (ticket.some((l) => l.product.id === product.id)) {
-    return ticket.map((l) => (l.product.id === product.id ? { ...l, product, qty: l.qty + qty, source, flashAt: at } : l));
+    return ticket.map((l) => (l.product.id === product.id ? { ...l, product, qty: roundQty(l.qty + qty), source, flashAt: at } : l));
   }
   return [{ product, qty, source, flashAt: at }, ...ticket];
 }
@@ -345,10 +348,16 @@ function reducer(s: Data, a: Action): Data {
       if (isDeleted(s, a.product.id)) return s;
       return { ...s, ticket: addToTicket(s.ticket, a.product, a.qty, 'manual', a.at) };
     case 'TICKET_QTY':
+      // +1 / −1 solo para piezas; lo pesado se corrige con TICKET_SET_QTY
       return {
         ...s,
-        ticket: s.ticket.map((l) => (l.product.id === a.productId ? { ...l, qty: l.qty + a.delta } : l)).filter((l) => l.qty > 0),
+        ticket: s.ticket
+          .map((l) => (l.product.id === a.productId && !isWeighed(l.product) ? { ...l, qty: l.qty + a.delta } : l))
+          .filter((l) => l.qty > 0),
       };
+    case 'TICKET_SET_QTY':
+      if (!(a.qty > 0)) return s;
+      return { ...s, ticket: s.ticket.map((l) => (l.product.id === a.productId && isWeighed(l.product) ? { ...l, qty: roundQty(a.qty) } : l)) };
     case 'TICKET_REMOVE':
       return { ...s, ticket: s.ticket.filter((l) => l.product.id !== a.productId) };
     case 'TICKET_CLEAR':
@@ -389,7 +398,7 @@ function reducer(s: Data, a: Action): Data {
         creditMovements: charge ? [charge, ...s.creditMovements] : s.creditMovements,
         products: s.products.map((p) => {
           const it = a.sale.items.find((i) => i.productId === p.id);
-          return it ? { ...p, stock: Math.max(0, p.stock - it.qty) } : p;
+          return it ? { ...p, stock: Math.max(0, roundQty(p.stock - it.qty)) } : p;
         }),
         // La venta de un pedido no sale de la cuenta abierta: esa se queda como está
         ...(a.sale.orderId
@@ -408,7 +417,7 @@ function reducer(s: Data, a: Action): Data {
       const prev = s.products.find((p) => p.id === a.product.id);
       // Un cambio que llega tarde (de un celular sin conexión) no revive un producto borrado
       if (prev?.deletedAt) return s;
-      const diff = a.product.stock - (prev?.stock ?? 0);
+      const diff = roundQty(a.product.stock - (prev?.stock ?? 0));
       const move: Movement | null = !prev
         ? { id: uid(), productId: a.product.id, type: 'alta', qty: a.product.stock, date: iso(a.at), note: 'Alta del producto' }
         : diff !== 0
@@ -430,7 +439,7 @@ function reducer(s: Data, a: Action): Data {
         ...s,
         products: s.products.map((p) => {
           const qty = a.entries.filter((e) => e.productId === p.id).reduce((n, e) => n + e.qty, 0);
-          return qty ? { ...p, stock: p.stock + qty } : p;
+          return qty ? { ...p, stock: roundQty(p.stock + qty) } : p;
         }),
         movements: [
           ...a.entries.map((e) => ({ id: uid(), productId: e.productId, type: 'entrada' as const, qty: e.qty, date: iso(a.at), note: a.note })),
@@ -455,7 +464,7 @@ function reducer(s: Data, a: Action): Data {
       const items: SaleItem[] = [];
       for (const [id, n] of Object.entries(qty)) {
         const p = s.products.find((x) => x.id === id);
-        if (!p || p.deletedAt || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
+        if (!p || p.deletedAt || isWeighed(p) || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
         items.push({ productId: p.id, name: p.name, qty: n, price: p.price });
       }
       if (!items.length) return s;
@@ -516,7 +525,7 @@ function reducer(s: Data, a: Action): Data {
       const items: SaleItem[] = [];
       for (const [id, n] of Object.entries(qty)) {
         const p = s.products.find((x) => x.id === id);
-        if (!p || p.deletedAt || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
+        if (!p || p.deletedAt || isWeighed(p) || p.showInApp === false || n < 1 || n > p.stock - (reserved[id] ?? 0)) return s;
         items.push({ productId: p.id, name: p.name, qty: n, price: p.price });
       }
       if (!items.length) return s;
@@ -630,7 +639,7 @@ const Ctx = createContext<AppState | null>(null);
 
 // Qué cambió de un producto, en pocas palabras ("Precio $20.00 → $22.00 · Existencia 10 → 12")
 function productChanges(before: Product | undefined, after: Product) {
-  if (!before) return `Lo diste de alta · ${after.stock} pzas · ${money(after.price)}`;
+  if (!before) return `Lo diste de alta · ${qtyLabel(after.stock, after.saleType)} · ${money(after.price)}${isWeighed(after) ? '/kg' : ''}`;
   const parts: string[] = [];
   if (before.name !== after.name) parts.push(`Nombre: ${after.name}`);
   if (before.price !== after.price) parts.push(`Precio ${money(before.price)} → ${money(after.price)}`);
@@ -866,11 +875,11 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
         let pieces = 0;
         op.entries.forEach((e) => {
           const p = byId.get(e.productId);
-          pieces += e.qty;
-          if (p) byId.set(p.id, { ...p, stock: p.stock + e.qty, sync: status });
+          pieces = roundQty(pieces + e.qty);
+          if (p) byId.set(p.id, { ...p, stock: roundQty(p.stock + e.qty), sync: status });
         });
         const first = byId.get(op.entries[0]?.productId ?? '');
-        const title = op.entries.length === 1 && first ? `+${pieces} ${first.name}` : `${op.entries.length} productos · +${pieces} pzas`;
+        const title = op.entries.length === 1 && first ? `+${qtyText(pieces, first.saleType)} ${first.name}` : `${op.entries.length} productos · +${pieces} pzas`;
         pending.push({ id: op.id, kind: op.kind, title, detail: 'Entrada de inventario', at: op.at, status });
       } else {
         extraSent.unshift({ id: op.id, product: op.product, qty: op.qty, at: op.at, status, deviceId: deviceId ?? '' });
@@ -924,7 +933,7 @@ export function AppProvider({ children, employee = '' }: { children: ReactNode; 
       log({
         kind: 'stock',
         title: entries.length === 1 && first ? first.name : `${entries.length} productos`,
-        detail: `Entrada de inventario · +${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}`,
+        detail: `Entrada de inventario · +${entries.length === 1 && first ? qtyLabel(pieces, first.saleType) : qtyLabel(pieces)}`,
       });
       return run({ id: uid(), kind: 'stock', entries, at: Date.now() });
     },

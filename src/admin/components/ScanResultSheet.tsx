@@ -1,3 +1,4 @@
+import { isWeighed, lineTotal, parseKg, qtyLabel, qtyText, roundQty } from '../../domain/weight';
 import { IonButton, IonContent, IonIcon, IonModal, useIonRouter, useIonToast } from '@ionic/react';
 import {
   add,
@@ -41,6 +42,10 @@ export function ScanResultSheet({ product, mode, initialQty = 1, destination, on
   const router = useIonRouter();
   const [toast] = useIonToast();
   const [qty, setQty] = useState(initialQty);
+  // Por peso: se escribe lo que marca la báscula, en kilos
+  const weighed = isWeighed(product);
+  const [kgText, setKgText] = useState('');
+  const kg = parseKg(kgText);
 
   // Al vender no se puede mandar más de lo disponible (existencia − apartado − lo que ya está en cuentas)
   const selling = mode === 'vender';
@@ -49,6 +54,7 @@ export function ScanResultSheet({ product, mode, initialQty = 1, destination, on
   const [limited, setLimited] = useState(false);
 
   useEffect(() => {
+    setKgText('');
     if (!selling) {
       setQty(initialQty);
       setLimited(false);
@@ -69,13 +75,19 @@ export function ScanResultSheet({ product, mode, initialQty = 1, destination, on
       cssClass: 'toast-app',
     });
 
+  // Lo que se va a mandar o sumar: piezas del contador o kilos escritos
+  const amount = weighed ? kg : qty;
+  const weightError =
+    !weighed || !kgText.trim() ? null : kg === null ? 'Usa kilos con hasta 3 decimales, por ejemplo 0.350.' : selling && kg > available ? `Solo hay ${qtyLabel(available, 'peso')} para vender.` : null;
+  const ready = amount !== null && amount > 0 && !weightError;
+
   const send = () => {
-    if (!product || soldOut) return;
-    const n = Math.min(qty, available);
-    if (n < 1) return;
+    if (!product || soldOut || !ready) return;
+    const n = weighed ? kg! : Math.min(qty, available);
+    if (!(n > 0)) return;
     // Sin cuenta elegida: la caja lo agrega a la cuenta que tenga en pantalla
     const r = sendToRegister(product, n);
-    notify(`${n} × ${product.name} agregado a ${destination ?? store.register}`, r === 'pendiente');
+    notify(`${weighed ? qtyText(n, 'peso') : `${n} ×`} ${product.name} agregado a ${destination ?? store.register}`, r === 'pendiente');
     onClose();
   };
 
@@ -88,9 +100,10 @@ export function ScanResultSheet({ product, mode, initialQty = 1, destination, on
   };
 
   const sumStock = () => {
-    if (!product) return;
-    const r = addStock([{ productId: product.id, qty }]);
-    notify(`+${qty} ${product.name} al inventario`, r === 'pendiente');
+    if (!product || !ready) return;
+    const n = amount!;
+    const r = addStock([{ productId: product.id, qty: n }]);
+    notify(`+${qtyLabel(n, product.saleType)} de ${product.name} al inventario`, r === 'pendiente');
     onClose();
   };
 
@@ -128,18 +141,45 @@ export function ScanResultSheet({ product, mode, initialQty = 1, destination, on
             <p className="ss-warn is-danger" role="alert">
               <IonIcon icon={alertCircleOutline} />
               <span>
-                <strong>Sin stock para vender.</strong> Las {piecesLabel(product.stock)} que marca el inventario ya están apartadas por pedidos o en otras cuentas.
+                <strong>Sin stock para vender.</strong> {weighed ? 'Los' : 'Las'} {piecesLabel(product.stock, product.saleType)} que marca el inventario ya están apartadas por pedidos o en otras cuentas.
               </span>
             </p>
           )}
           {selling && !soldOut && limited && (
             <p className="ss-warn" role="status">
               <IonIcon icon={alertCircleOutline} />
-              <span>Solo hay <strong>{availableLabel(available)}</strong> para vender.</span>
+              <span>Solo hay <strong>{availableLabel(available, product.saleType)}</strong> para vender.</span>
             </p>
           )}
 
-          {mode !== 'consultar' && !soldOut && (
+          {mode !== 'consultar' && !soldOut && weighed && (
+            <section className="ss-qty ss-weight">
+              <label htmlFor="ss-kg">{mode === 'vender' ? 'Peso' : 'Kilos que entran'}</label>
+              <div className={`ss-kg ${weightError ? 'is-error' : ''}`}>
+                <input
+                  id="ss-kg"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="0.000"
+                  value={kgText}
+                  aria-invalid={!!weightError}
+                  aria-describedby="ss-kg-msg"
+                  onChange={(e) => setKgText(e.target.value.replace(/[^\d.,]/g, ''))}
+                />
+                <b>kg</b>
+              </div>
+              <p id="ss-kg-msg" className={`ss-kg-msg ${weightError ? 'is-error' : ''}`} role={weightError ? 'alert' : undefined}>
+                {weightError ??
+                  (kg !== null && mode === 'vender'
+                    ? `${qtyText(kg, 'peso')} × ${money(product.price)}/kg = ${money(lineTotal(kg, product.price, 'peso'))}`
+                    : mode === 'vender'
+                      ? `${money(product.price)} por kg. Escribe lo que marca la báscula.`
+                      : 'Escribe cuántos kilos entran.')}
+              </p>
+            </section>
+          )}
+
+          {mode !== 'consultar' && !soldOut && !weighed && (
             <section className="ss-qty">
               <span>{mode === 'vender' ? 'Cantidad' : 'Piezas que entran'}</span>
               <div className="ss-stepper">
@@ -154,7 +194,15 @@ export function ScanResultSheet({ product, mode, initialQty = 1, destination, on
             </section>
           )}
 
-          {mode === 'inventario' && (
+          {mode === 'inventario' && weighed && (
+            <div className="ss-quick">
+              <span className="ss-after">
+                Quedarán <strong>{qtyLabel(roundQty(product.stock + (kg ?? 0)), 'peso')}</strong>
+              </span>
+            </div>
+          )}
+
+          {mode === 'inventario' && !weighed && (
             <div className="ss-quick">
               {[6, 12, 24].map((n) => (
                 <button key={n} type="button" onClick={() => setQty(n)} className={qty === n ? 'is-active' : ''}>
@@ -171,9 +219,13 @@ export function ScanResultSheet({ product, mode, initialQty = 1, destination, on
             <div className="ss-actions">
               {thisDevice ? (
                 <>
-                  <IonButton expand="block" color="secondary" className="btn-xl" onClick={send} disabled={soldOut}>
+                  <IonButton expand="block" color="secondary" className="btn-xl" onClick={send} disabled={soldOut || !ready}>
                     <IonIcon slot="start" icon={paperPlaneOutline} />
-                    {soldOut ? 'Sin stock' : `Enviar a la caja · ${money(product.price * qty)}`}
+                    {soldOut
+                      ? 'Sin stock'
+                      : amount !== null && ready
+                        ? `Enviar a la caja · ${money(lineTotal(amount, product.price, product.saleType))}`
+                        : 'Escribe el peso'}
                   </IonButton>
                   {!soldOut && (
                     <p className="ss-dest">
@@ -199,7 +251,7 @@ export function ScanResultSheet({ product, mode, initialQty = 1, destination, on
 
           {mode === 'inventario' && (
             <div className="ss-actions">
-              <IonButton expand="block" className="btn-xl" onClick={sumStock}>
+              <IonButton expand="block" className="btn-xl" onClick={sumStock} disabled={!ready}>
                 <IonIcon slot="start" icon={addCircleOutline} />
                 Sumar al stock
               </IonButton>
@@ -230,7 +282,7 @@ export function ScanResultSheet({ product, mode, initialQty = 1, destination, on
                         <strong>{MOVE_LABEL[m.type]}</strong>
                         <span className="muted">{m.note} · {shortDate(m.date)}</span>
                       </span>
-                      <span className={`ss-move-qty ${m.qty > 0 ? 'is-in' : 'is-out'}`}>{m.qty > 0 ? `+${m.qty}` : m.qty}</span>
+                      <span className={`ss-move-qty ${m.qty > 0 ? 'is-in' : 'is-out'}`}>{m.qty > 0 ? '+' : ''}{qtyText(m.qty, product.saleType)}</span>
                     </li>
                   ))}
                 </ul>

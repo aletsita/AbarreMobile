@@ -1,8 +1,8 @@
 import { IonButton, IonContent, IonFooter, IonIcon, IonPage, IonSpinner, IonToolbar } from '@ionic/react';
-import { arrowForward, trashOutline } from 'ionicons/icons';
+import { arrowForward, chatbubbleEllipsesOutline, receiptOutline, trashOutline } from 'ionicons/icons';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
-import { AreaField } from '../../components/Form';
+import { AreaField, FormCard } from '../../components/Form';
 import { money } from '../../data/models';
 import { ProductImage, QtyStepper, StoreClosed } from '../components/ui';
 import { useCart } from '../lib/cart';
@@ -42,30 +42,29 @@ export default function Carrito() {
 
         <ul className="cl-cart-lines">
           {cart.lines.map((l) => (
-            <li key={l.productId} className="card cl-cart-line">
-              <ProductImage product={l} size={72} />
+            <li key={l.productId} className="cl-cart-line">
+              <ProductImage product={l} size={56} />
               <div className="cl-cart-info">
-                <div className="cl-cart-top">
-                  <strong>{l.name}</strong>
-                  <button type="button" className="cl-cart-remove" onClick={() => cart.remove(l.productId)} aria-label={`Quitar ${l.name}`}>
-                    <IonIcon icon={trashOutline} />
-                  </button>
-                </div>
-                <span className="muted">
-                  {money(l.price)} c/u{l.qty >= l.stock && <span className="cl-cart-max"> · máximo disponible</span>}
+                <strong>{l.name}</strong>
+                <span className="cl-cart-meta">
+                  {money(l.price)} c/u
+                  {l.qty >= l.stock && <span className="cl-cart-max">Máximo disponible</span>}
                 </span>
-                <div className="cl-cart-bottom">
-                  <QtyStepper label={`Cantidad de ${l.name}`} value={l.qty} max={l.stock} onChange={(n) => cart.setQty(l.productId, n)} />
-                  <span className="money cl-cart-sub">{money(l.price * l.qty)}</span>
-                </div>
+                <QtyStepper label={`Cantidad de ${l.name}`} value={l.qty} max={l.stock} onChange={(n) => cart.setQty(l.productId, n)} />
+              </div>
+              <div className="cl-cart-side">
+                <span className="money cl-cart-sub">{money(l.price * l.qty)}</span>
+                <button type="button" className="cl-cart-remove" onClick={() => cart.remove(l.productId)} aria-label={`Quitar ${l.name}`}>
+                  <IonIcon icon={trashOutline} />
+                </button>
               </div>
             </li>
           ))}
         </ul>
 
-        <section className="card cl-cart-note">
+        <FormCard title="Nota para la tienda" icon={chatbubbleEllipsesOutline} text="Opcional: algo que deban saber al prepararlo">
           <AreaField
-            label="Nota para la tienda"
+            label="Nota"
             optional
             rows={2}
             maxLength={NOTE_MAX}
@@ -74,20 +73,22 @@ export default function Carrito() {
             onChange={cart.setNote}
             hint={`${cart.note.length}/${NOTE_MAX}`}
           />
-        </section>
+        </FormCard>
 
-        <section className="card cl-cart-total">
+        <FormCard title="Resumen" icon={receiptOutline} className="cl-cart-total">
           <div>
-            <span>Productos</span>
-            <span>
-              {cart.count} {cart.count === 1 ? 'pieza' : 'piezas'}
-            </span>
+            <span>Productos distintos</span>
+            <span>{cart.lines.length}</span>
+          </div>
+          <div>
+            <span>Piezas</span>
+            <span>{cart.count}</span>
           </div>
           <div className="is-total">
             <span>Total</span>
             <strong className="money">{money(cart.total)}</strong>
           </div>
-        </section>
+        </FormCard>
       </div>
     );
   }

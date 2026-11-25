@@ -81,3 +81,14 @@
 .ss-warn.is-danger { background: var(--t-danger-bg); color: var(--ion-color-danger-shade); }
 .ss-dest { margin: 8px 2px 0; font-size: 0.86rem; color: var(--t-muted); text-align: center; }
 .ss-stepper button:disabled { opacity: 0.4; }
+
+/* Por peso: el número grande, a la derecha, con su unidad */
+.ss-weight { flex-wrap: wrap; }
+.ss-weight > label { font-weight: 650; font-size: 0.94rem; }
+.ss-kg { display: flex; align-items: center; gap: 6px; flex: 1 1 150px; max-width: 220px; padding: 0 12px; border: 1.5px solid var(--t-border-strong); border-radius: 12px; background: var(--t-surface); }
+.ss-kg:focus-within { border-color: var(--ion-color-primary); }
+.ss-kg.is-error { border-color: var(--ion-color-danger); }
+.ss-kg input { flex: 1; min-width: 0; height: 52px; border: 0; outline: 0; background: transparent; color: var(--ion-text-color); font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+.ss-kg b { color: var(--t-muted); }
+.ss-kg-msg { flex-basis: 100%; margin: 2px 0 0; color: var(--t-muted); font-size: 0.9rem; }
+.ss-kg-msg.is-error { color: var(--ion-color-danger); font-weight: 600; }

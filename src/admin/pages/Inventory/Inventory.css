@@ -1,6 +1,22 @@
 .inv-tools { display: flex; align-items: center; gap: 8px; padding: 0 12px 10px; }
 .inv-search { flex: 1; padding: 0; --border-radius: 12px; --box-shadow: none; --background: var(--t-surface-3); }
-.inv-scan { margin: 0; flex: none; height: 44px; font-weight: 650; }
+
+/* Escanear y agregar: dos tarjetas grandes arriba de la lista */
+.inv-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.inv-action { display: flex; align-items: center; gap: 10px; min-height: 68px; padding: 10px 12px; border: 0; border-radius: var(--t-radius); font: inherit; text-align: left; box-shadow: var(--t-shadow-btn); }
+.inv-action span:last-child { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.inv-action strong { font-size: 1rem; font-weight: 800; }
+.inv-action small { font-size: 0.78rem; opacity: 0.85; }
+.inv-action-icon { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 12px; font-size: 24px; }
+.inv-action.is-scan { background: var(--t-brand-gradient); color: #fff; }
+.inv-action.is-scan .inv-action-icon { background: rgba(255, 255, 255, 0.2); }
+.inv-action.is-add { background: var(--t-surface); color: var(--t-ink); border: 1.5px solid var(--ion-color-primary); box-shadow: none; }
+.inv-action.is-add .inv-action-icon { background: var(--t-primary-bg); color: var(--ion-color-primary); }
+.inv-action:active { transform: scale(0.98); }
+/* Botón flotante para escanear sin subir hasta arriba; el espacio evita que tape el último producto */
+.inv-fab { margin: 0 4px 6px 0; }
+.inv-fab ion-fab-button { --box-shadow: var(--t-shadow-pop); width: 60px; height: 60px; }
+.inv-fab-space { height: 72px; }
 
 .inv-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .inv-kpi { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px; border: 1.5px solid var(--t-border); border-radius: var(--t-radius); background: var(--t-surface); color: var(--t-ink); font: inherit; text-align: left; }

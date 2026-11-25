@@ -1,3 +1,4 @@
+import { isWeighed } from '../../../domain/weight';
 import {
   IonButton,
   IonContent,
@@ -110,7 +111,7 @@ export default function Scanner() {
 
   const handleProduct = (p: ProductView, qty = 1) => {
     setLastScanned(p.name);
-    if (mode === 'inventario' && batchMode) {
+    if (mode === 'inventario' && batchMode && !isWeighed(p)) {
       setBatch((b) =>
         b.some((l) => l.product.id === p.id)
           ? b.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + qty } : l))
