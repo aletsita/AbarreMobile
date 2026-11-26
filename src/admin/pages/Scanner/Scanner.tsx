@@ -42,6 +42,7 @@ import { useApp, type ProductView, type SentView } from '../../context/AppContex
 import { money } from '../../../data/models';
 import { ScanResultSheet, type ScanMode } from '../../components/ScanResultSheet';
 import './Scanner.css';
+import { useSession } from '../../../session/SessionContext';
 
 interface BatchLine {
   product: ProductView;
@@ -90,6 +91,7 @@ export default function Scanner() {
   const [toast] = useIonToast();
   const showAlert = useAppAlert();
   const [mode, setMode] = useState<ScanMode>('vender');
+  const { session } = useSession();
   const [batchMode, setBatchMode] = useState(false);
   const [batch, setBatch] = useState<BatchLine[]>([]);
   const [current, setCurrent] = useState<ProductView>();
@@ -213,10 +215,13 @@ export default function Scanner() {
               <IonIcon icon={cartOutline} />
               <IonLabel>Vender</IonLabel>
             </IonSegmentButton>
-            <IonSegmentButton value="inventario" layout="icon-start">
-              <IonIcon icon={archiveOutline} />
-              <IonLabel>Inventario</IonLabel>
-            </IonSegmentButton>
+            {/* Según la API, las entradas de inventario son de Dueño e Inventario */}
+            {session?.staffRole !== 'Cajero' && (
+              <IonSegmentButton value="inventario" layout="icon-start">
+                <IonIcon icon={archiveOutline} />
+                <IonLabel>Inventario</IonLabel>
+              </IonSegmentButton>
+            )}
             <IonSegmentButton value="consultar" layout="icon-start">
               <IonIcon icon={searchOutline} />
               <IonLabel>Consultar</IonLabel>

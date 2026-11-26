@@ -30,6 +30,7 @@ import { ScannerView } from '../../scanner/ScannerView';
 import { useApp, type LinkResult, type ServerStatus } from '../../context/AppContext';
 import { defaultDeviceName } from '../../lib/device';
 import { normalizeServer, parseLinkQr, shortServer } from '../../../lib/link';
+import { SERVER_FIXED } from '../../../lib/server';
 import './Link.css';
 
 type Method = 'qr' | 'codigo';
@@ -44,15 +45,16 @@ export const STATUS_LABEL: Record<ServerStatus, string> = {
 function errorText(r: Exclude<LinkResult, 'ok'>, server: string) {
   switch (r) {
     case 'invalido':
-      return 'El código no coincide. Revísalo en Dispositivos, en la computadora de la caja.';
+      return 'El código no es válido o ya venció. Revísalo en Dispositivos, en la computadora de la caja, o genera otro.';
     case 'vencido':
       return 'El código ya venció. Toca «Generar otro» en la caja.';
     case 'sin-conexion':
-      return 'Este celular no tiene conexión. Conéctalo a la misma red Wi‑Fi que la caja.';
+      return SERVER_FIXED ? 'Este celular no tiene internet. Conéctate a una red Wi‑Fi o a tus datos.' : 'Este celular no tiene conexión. Conéctalo a la misma red Wi‑Fi que la caja.';
     case 'direccion':
       return 'Escribe la dirección que aparece en la caja, por ejemplo 192.168.1.20:8787.';
     case 'sin-respuesta':
-      return `La caja no respondió en ${shortServer(server)}. Revisa que el celular esté en la misma Wi‑Fi, que el servidor esté encendido (npm run dev:server) y que el firewall de Windows permita Node.js.`;
+      if (SERVER_FIXED) return 'No se pudo contactar al servidor de Abarré. Revisa tu conexión a internet e intenta de nuevo.';
+      return `El servidor no respondió en ${shortServer(server)}. Revisa que el celular tenga conexión, que la API (AbarreAPI) esté encendida y que el firewall de Windows permita el puerto 8787.`;
   }
 }
 
@@ -99,7 +101,7 @@ export default function Link() {
 
   const submitCode = (e?: React.FormEvent) => {
     e?.preventDefault();
-    const target = normalizeServer(address);
+    const target = SERVER_FIXED ? server : normalizeServer(address);
     if (!target) {
       setError(errorText('direccion', ''));
       return;
@@ -167,9 +169,13 @@ export default function Link() {
               </section>
 
               <ol className="link-steps">
-                <li>Conecta este celular a la <strong>misma red Wi‑Fi</strong> que la computadora de la caja.</li>
+                {SERVER_FIXED ? (
+                  <li>Asegúrate de que este celular tenga <strong>internet</strong> (Wi‑Fi o datos).</li>
+                ) : (
+                  <li>Conecta este celular a la <strong>misma red Wi‑Fi</strong> que la computadora de la caja.</li>
+                )}
                 <li>En la caja abre <strong>Dispositivos</strong> y toca <strong>Vincular nuevo celular</strong>.</li>
-                <li>Escanea el código QR, o escribe la dirección y los 6 dígitos.</li>
+                <li>{SERVER_FIXED ? 'Escanea el código QR o escribe los 6 dígitos.' : 'Escanea el código QR, o escribe la dirección y los 6 dígitos.'}</li>
               </ol>
 
               <TextField label="Nombre de este celular" hint="Así aparecerá en la caja" icon={phonePortraitOutline} value={name} maxLength={30} onChange={setName} />
@@ -191,6 +197,7 @@ export default function Link() {
                 </div>
               ) : (
                 <form className="card link-code" onSubmit={submitCode}>
+                  {!SERVER_FIXED && (
                   <TextField
                     label="Dirección de la caja"
                     hint="Aparece debajo del QR, por ejemplo 192.168.1.20:8787"
@@ -206,6 +213,7 @@ export default function Link() {
                       setError('');
                     }}
                   />
+                  )}
                   <div className="fld">
                     <label className="fld-label" htmlFor="link-code">Código de 6 dígitos</label>
                     <div className="code-boxes" onClick={() => inputRef.current?.focus()}>

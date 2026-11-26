@@ -1,4 +1,4 @@
-// Tipos que viajan entre la app y el servidor (tendero-web/server/api.js). Ver API.md.
+// Tipos que viajan entre la app y AbarreAPI (AbarreAPI/Contratos/Cliente.cs). Ver API.md.
 
 // cliente: Pide y recoge · personal: usuario activo de la caja (Dueño, Cajero o Inventario)
 export type Role = 'cliente' | 'personal';
@@ -10,6 +10,7 @@ export interface TokenClaims {
   role: Role;
   name: string;
   staffRole?: StaffRole; // solo personal
+  tiendaId?: string;
   exp: number; // segundos desde 1970
 }
 

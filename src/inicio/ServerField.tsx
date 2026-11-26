@@ -1,11 +1,17 @@
 import { IonIcon } from '@ionic/react';
 import { useEffect, useState } from 'react';
 import { TextField } from '../components/Form';
-import { getServer, normalizeServer, setServer, shortServer } from '../lib/server';
+import { getServer, normalizeServer, SERVER_FIXED, setServer, shortServer } from '../lib/server';
 
-// Dirección del servidor de la tienda. Casi nunca se toca: viene puesta, o la trae el QR de la caja.
-// Abierta desde el inicio si el teléfono todavía no tiene ninguna.
-export function ServerField({ icon, onValidChange, showErrors }: { icon: string; onValidChange: (ok: boolean) => void; showErrors: boolean }) {
+type Props = { icon: string; onValidChange: (ok: boolean) => void; showErrors: boolean };
+
+// Dirección del servidor de la tienda. Con la API en la nube viene fija en la app y no se muestra;
+// en desarrollo se puede cambiar (abierta desde el inicio si el teléfono todavía no tiene ninguna).
+export function ServerField(props: Props) {
+  return SERVER_FIXED ? null : <EditableServer {...props} />;
+}
+
+function EditableServer({ icon, onValidChange, showErrors }: Props) {
   const [current, setCurrent] = useState(getServer);
   const [editing, setEditing] = useState(!current);
   const [text, setText] = useState(shortServer(current));

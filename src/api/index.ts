@@ -13,9 +13,15 @@ function transport(): Transport {
 
 let token: string | null = null;
 let onExpired: (() => void) | null = null;
+// Celular vinculado con la caja: la API lo anota en lo que manda este celular (envíos)
+let deviceId: string | null = null;
 
 export const setApiToken = (t: string | null) => {
   token = t;
+};
+export const getApiToken = () => token;
+export const setApiDevice = (id: string | null) => {
+  deviceId = id;
 };
 // La sesión se registra aquí para cerrarse cuando el servidor responde 401
 export const onSessionExpired = (fn: (() => void) | null) => {
@@ -25,14 +31,18 @@ export const onSessionExpired = (fn: (() => void) | null) => {
 async function call<T>(method: Method, path: string, opts: Omit<RequestOptions, 'token'> = {}): Promise<T> {
   const t = transport();
   const sent = token;
+  const headers = deviceId ? { 'X-Dispositivo': deviceId, ...opts.headers } : opts.headers;
   try {
-    return await t.request<T>(method, path, { ...opts, token: sent });
+    return await t.request<T>(method, path, { ...opts, headers, token: sent });
   } catch (e) {
     // Un 401 sin token (por ejemplo, contraseña equivocada) no es una sesión vencida
     if (e instanceof ApiError && e.status === 401 && sent && sent === token) onExpired?.();
     throw e;
   }
 }
+
+// Rutas del personal (caja, inventario, envíos, pedidos de la tienda): ver AbarreAPI/README.md
+export const staffApi = <T>(method: Method, path: string, body?: unknown) => call<T>(method, path, body !== undefined ? { body } : {});
 
 export const api = {
   register: (input: { name: string; email: string; phone: string; password: string }) =>
