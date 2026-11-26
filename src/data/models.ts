@@ -228,4 +228,16 @@ export const PAYMENT_LABEL: Record<PaymentMethod, string> = {
 
 export const availableCredit = (c: Customer) => Math.max(0, c.creditLimit - c.balance);
 
-export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+// UUID v4: el servidor usa estos id tal cual (envíos, productos, entradas), así no se duplican al reintentar.
+// crypto.randomUUID solo existe en contextos seguros (https o localhost); en la red local se arma a mano.
+export const uid = (): string => {
+  const c = globalThis.crypto;
+  if (typeof c?.randomUUID === 'function') return c.randomUUID();
+  const b = new Uint8Array(16);
+  if (c?.getRandomValues) c.getRandomValues(b);
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+};

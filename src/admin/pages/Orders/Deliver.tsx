@@ -23,7 +23,7 @@ const METHOD_ICON: Record<CashMethod, string> = { efectivo: cashOutline, tarjeta
 // Si ya se pagó en la app no se cobra: solo se valida el código (el servidor lo revisa y limita los intentos).
 // Igual que en la caja: el código nunca se muestra, solo se compara.
 export default function Deliver() {
-  const { orders, deliverOrder } = useApp();
+  const { orders, deliverOrder, verifyPickupCode } = useApp();
   const router = useIonRouter();
   const [toast] = useIonToast();
   const showAlert = useAppAlert();
@@ -59,28 +59,21 @@ export default function Deliver() {
     window.setTimeout(() => (document.getElementById('dl-code') as HTMLInputElement | null)?.select());
   };
 
-  const check = (raw: string) => {
-    if (locked || verified) return;
+  // El servidor busca el pedido listo con ese código (no lo manda al celular: solo lo compara)
+  const check = async (raw: string) => {
+    if (locked || verified || busy) return;
     const parsed = parsePickupInput(raw);
     if (!parsed) return setError('Escribe los 6 caracteres del código o escanea el QR del cliente.');
-    let found: PickupOrder | undefined;
-    if (preset) {
-      if (parsed.orderId && parsed.orderId !== preset.id) return fail(`Ese código es de otro pedido, no del ${preset.folio}.`);
-      if (preset.pickupCode !== parsed.code) {
-        const other = orders.find((o) => o.id !== preset.id && o.pickupCode === parsed.code);
-        return fail(
-          other
-            ? `Ese código es del pedido ${other.folio} (${other.customer.name}), no del ${preset.folio}.`
-            : `El código no coincide con el del ${preset.folio}. Pídele al cliente que lo revise en su app.`,
-        );
-      }
-      found = preset;
-    } else {
-      found = orders.find((o) => o.pickupCode === parsed.code && (!parsed.orderId || o.id === parsed.orderId));
-      if (!found) return fail('No hay ningún pedido con ese código.');
+    if (preset && parsed.orderId && parsed.orderId !== preset.id) return fail(`Ese código es de otro pedido, no del ${preset.folio}.`);
+    setBusy(true);
+    const r = await verifyPickupCode(raw.trim());
+    setBusy(false);
+    if (!r.ok) {
+      if (r.code === 'sin-conexion') return setError('Entregar un pedido requiere conexión con la tienda. Revisa la conexión.');
+      return fail(r.message);
     }
-    if (found.status === 'entregado') return fail(`El pedido ${found.folio} ya se entregó.`);
-    if (found.status === 'cancelado') return fail(`El pedido ${found.folio} está cancelado.`);
+    const found = r.value;
+    if (preset && found.id !== preset.id) return fail(`Ese código es del pedido ${found.folio} (${found.customer.name}), no del ${preset.folio}.`);
     if (found.issue) return setError(`El pedido ${found.folio} está esperando a que el cliente cambie un producto agotado.`);
     if (found.status !== 'listo') return setError(`El pedido ${found.folio} está en "${ORDER_STATUS_LABEL[found.status]}". Márcalo como listo antes de entregarlo.`);
     fails.current = 0;
@@ -219,11 +212,11 @@ export default function Deliver() {
                       const v = cleanPickupCode(e.target.value);
                       setText(v);
                       setError('');
-                      if (PICKUP_CODE.test(v)) check(v);
+                      if (PICKUP_CODE.test(v)) void check(v);
                     }}
                   />
                   <p className="dl-help">Está debajo del QR en la app del cliente. Se revisa solo al completar los 6.</p>
-                  <IonButton expand="block" className="btn-lg" disabled={locked || text.length < 6} onClick={() => check(text)}>
+                  <IonButton expand="block" className="btn-lg" disabled={locked || text.length < 6} onClick={() => void check(text)}>
                     <IonIcon slot="start" icon={checkmarkDone} />
                     Verificar código
                   </IonButton>

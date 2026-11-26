@@ -1,12 +1,18 @@
 import { normalizeServer, shortServer } from './link';
 
-// Dirección del servidor de la tienda (tendero-web: npm run dev:server). La usan la API (/api) y la
-// sincronización con la caja (/__sync). Se guarda en el teléfono: la escribe quien inicia sesión o llega
-// en el QR de vinculación. VITE_SYNC_URL es solo el valor inicial.
+// Dirección de AbarreAPI con el formato del QR de vinculación (https://api.ejemplo.com/__sync).
+// De ahí salen la API (/api) y el canal en vivo del personal (/hubs).
+// - API en la nube (VITE_SYNC_URL con https://): la dirección queda fija en la app. Nadie la escribe ni la cambia,
+//   y clientes y personal se conectan desde cualquier lugar.
+// - Desarrollo (http:// o sin valor): se guarda en el teléfono y se puede cambiar en «Iniciar sesión»
+//   (la API corriendo en una computadora de la red local).
 const KEY = 'tendero.servidor';
 export const DEFAULT_SERVER = normalizeServer(import.meta.env.VITE_SYNC_URL ?? '');
+export const SERVER_FIXED = !!DEFAULT_SERVER && DEFAULT_SERVER.startsWith('https://');
 
 export function getServer(): string | null {
+  // Una dirección vieja guardada en el teléfono (de cuando se probaba en la red local) no gana sobre la fija
+  if (SERVER_FIXED) return DEFAULT_SERVER;
   try {
     const raw = localStorage.getItem(KEY);
     const saved = raw ? (JSON.parse(raw) as unknown) : null;
@@ -17,6 +23,7 @@ export function getServer(): string | null {
 }
 
 export function setServer(url: string) {
+  if (SERVER_FIXED) return;
   try {
     localStorage.setItem(KEY, JSON.stringify(url));
   } catch {

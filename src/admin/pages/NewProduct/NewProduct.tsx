@@ -184,7 +184,7 @@ export default function NewProduct() {
     savingRef.current = true;
     setSaving(true);
     const product: Product = {
-      id: `p${uid()}`,
+      id: uid(),
       name: name.trim(),
       category,
       price: Number(price),

@@ -19,7 +19,7 @@ function Home() {
 export default function AdminApp() {
   const { session } = useSession();
   return (
-    <AppProvider employee={session?.name}>
+    <AppProvider employee={session?.name} tiendaId={session?.tiendaId ?? null}>
       <IonRouterOutlet>
         <Route exact path="/movil/inicio" component={Home} />
         <Route exact path="/movil/vincular" component={Link} />

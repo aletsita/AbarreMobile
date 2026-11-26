@@ -3,18 +3,18 @@
 La app del celular de Abarré. Al abrirla muestra una animación con el logo y luego **Iniciar sesión**. Todos entran con correo y contraseña, y la cuenta decide qué pantallas ve cada quien:
 
 - **Personal de la tienda:** si el correo es el de un usuario activo de la caja (Dueño, Cajero o Inventario), primero vincula el celular con la caja y luego escanea o busca productos por código, los manda a la caja, revisa y edita el inventario (con escáner), da de alta productos nuevos, y prepara y entrega pedidos escaneando el QR del cliente.
-- **Cliente («Pide y recoge»):** cualquier otra cuenta. Arma su súper, hace el pedido, lo sigue en «Mis pedidos» y recibe notificaciones cuando la tienda cambia el estado. Paga al recoger.
+- **Cliente («Pide y recoge»):** cualquier otra cuenta. Arma su súper, hace el pedido, lo sigue en «Mis pedidos» y recibe notificaciones cuando la tienda cambia el estado. Paga con tarjeta dentro de la app (Stripe, modo de pruebas) al hacer el pedido.
 
 Es una app nativa de **Android** hecha con Capacitor. Durante el desarrollo también corre en el navegador.
 
 Hecho con React 18, TypeScript, Ionic React 8, Vite 5 y Capacitor 8 (`@capacitor/preferences`, `@capacitor-mlkit/barcode-scanning`, `@capacitor/local-notifications`, `@capacitor/app`, `capacitor-secure-storage-plugin`).
 
-Todo pasa por el servidor del proyecto web ([tendero-web](../tendero-web), `npm run dev:server`):
+Todo pasa por **[AbarreAPI](../AbarreAPI)** (ASP.NET Core + PostgreSQL), la misma API que usa la caja:
 
-- `/api`: cuentas, catálogo y pedidos. Ver [API.md](API.md).
-- `/__sync`: sincronización del celular de la tienda con la caja. Ver [SYNC_PROTOCOL.md](SYNC_PROTOCOL.md).
+- **Clientes:** `/api` (cuentas, catálogo, pedidos con pago en línea y eventos SSE). Ver [API.md](API.md).
+- **Personal:** catálogo con `GET /api/sync/cambios`; envíos a la caja, entradas y productos en una cola que sube con `POST /api/sync/subir` (funciona sin conexión); pedidos con `/api/gestion/pedidos`; en vivo con SignalR (`/hubs/tienda`). El celular vinculado manda `X-Dispositivo` en cada petición.
 
-**La caja tiene que estar abierta** (`npm run dev` en tendero-web, en el navegador) para que los clientes vean el catálogo actualizado y puedan hacer pedidos.
+Los clientes pueden pedir mientras la tienda acepte pedidos y haya un **turno abierto** en alguna caja (lo decide la API, no hace falta que la caja esté abierta en el navegador).
 
 ## Requisitos
 
@@ -28,11 +28,10 @@ npm install
 cp .env.example .env
 ```
 
-La app usa **una sola dirección** del servidor (`tendero.servidor`, guardada en el teléfono) para la API y la sincronización. Se puede poner de tres formas:
+La app usa **una sola dirección**, la de AbarreAPI (`tendero.servidor`, guardada en el teléfono con el formato `http://IP:8787/__sync`; de ahí salen `/api` y `/hubs`). Se puede poner de dos formas:
 
 - En `.env` con `VITE_SYNC_URL`, como valor inicial al compilar.
 - En **Iniciar sesión → Servidor de la tienda → Cambiar** (por ejemplo `192.168.1.20:8787`).
-- Al vincular el celular de la tienda: viene dentro del QR de **Dispositivos → Vincular nuevo celular**.
 
 | Dónde corre la app | `VITE_SYNC_URL` inicial |
 |---|---|
@@ -43,14 +42,13 @@ La app usa **una sola dirección** del servidor (`tendero.servidor`, guardada en
 ### Cuentas
 
 - **Clientes:** tocan **Crear una cuenta** en la app.
-- **Personal:** también crea su cuenta en la app, con el **mismo correo** que tiene en la caja (**Ajustes → Usuarios**). Si el usuario está activo en la caja, entra como personal; si lo desactivan, la próxima vez que inicie sesión entra como cliente.
+- **Personal:** el dueño lo da de alta en la caja (**Configuración → Usuarios y roles**) y la persona crea su contraseña en la app con **Crear una cuenta** y el **mismo correo**. Si el usuario está activo, entra como personal; si lo desactivan, su sesión se cierra en la siguiente petición. Para probar: `ana.lopez@correo.mx` / `abarre123` (Cajero) o `donpepe@correo.mx` / `abarre123` (Dueño).
 
 ### Conectar con la caja
 
-1. En la PC de la caja: `npm run dev:server` y `npm run dev` en tendero-web. El servidor imprime la dirección para el celular (`Para el celular (misma Wi-Fi): http://192.168.1.20:8787/__sync`).
-2. Conecta el celular a la misma Wi‑Fi.
-3. Inicia sesión con una cuenta de personal. La app abre **Vincular con la caja**.
-4. En la caja abre **Dispositivos → Vincular nuevo celular** y en el celular escanea el QR, o elige **Escribir código** y pon la dirección y los 6 dígitos.
+1. En la PC: la API (`dotnet run --launch-profile http` en AbarreAPI) y la caja (`npm run dev` en AbarrePWA).
+2. Conecta el celular a la misma Wi‑Fi e inicia sesión con una cuenta de personal, con la dirección de la API (`IP-de-tu-PC:8787`). La app abre **Vincular con la caja**.
+3. En la caja, el **Dueño** abre **Dispositivos → Vincular nuevo celular**; en el celular escanea el QR o escribe los 6 dígitos. El código lo revisa la API (`POST /api/dispositivos/vincular`).
 
 En la app nativa la red local usa `http://`, así que compila en modo desarrollo (`CAP_MODE=development`, que es el valor por defecto si `VITE_SYNC_URL` no empieza con `https://`).
 

@@ -8,6 +8,7 @@ export interface Session {
   userId: string;
   name: string;
   staffRole?: StaffRole;
+  tiendaId?: string;
   token: string;
 }
 
@@ -33,7 +34,7 @@ const fromToken = (token: string): Session | null => {
   const c = decodeToken<TokenClaims>(token);
   if (!c || (c.role !== 'cliente' && c.role !== 'personal') || !c.sub) return null;
   if (c.exp * 1000 <= Date.now()) return null;
-  return { role: c.role, userId: c.sub, name: c.name ?? '', staffRole: c.staffRole, token };
+  return { role: c.role, userId: c.sub, name: c.name ?? '', staffRole: c.staffRole, tiendaId: c.tiendaId, token };
 };
 
 const EXPIRED = 'Tu sesión venció. Vuelve a iniciar sesión.';

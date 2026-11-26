@@ -209,6 +209,14 @@ export default function Orders() {
       position: "top",
       cssClass: "toast-app",
     });
+  const failed = (message: string) =>
+    void toast({
+      message,
+      duration: 4000,
+      color: "danger",
+      position: "top",
+      cssClass: "toast-app",
+    });
 
   // Igual que en la caja: si se agotó algo se avisa al cliente y el pedido sigue; si no, se cancela con un motivo
   const problem = (o: PickupOrder) => {
@@ -258,8 +266,9 @@ export default function Orders() {
           text: "Avisar al cliente",
           handler: (missing: string[]) => {
             if (!missing?.length) return false;
-            reportShortage(o.id, missing);
-            done(`Le avisamos a ${o.customer.name}`);
+            void reportShortage(o.id, missing).then((r) =>
+              r.ok ? done(`Le avisamos a ${o.customer.name}`) : failed(r.message),
+            );
           },
         },
       ],
@@ -285,8 +294,9 @@ export default function Orders() {
           role: "destructive",
           handler: ({ note }: { note?: string }) => {
             if (!note?.trim()) return false;
-            cancelOrder(o.id, note);
-            done(`${o.folio} cancelado. Le avisamos a ${o.customer.name}.`);
+            void cancelOrder(o.id, note).then((r) =>
+              r.ok ? done(`${o.folio} cancelado. Le avisamos a ${o.customer.name}.`) : failed(r.message),
+            );
           },
         },
       ],
